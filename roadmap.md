@@ -3,4 +3,4 @@
 - [x] Build dashboard, New Analysis, Historical Data, Saved Analyses, Settings views
 - [x] Wire persistence and saved analyses
 - [x] Validate with sample and convergence data
-- [ ] Treat three-line history records as source line 2 followed by target line 3
+- [x] Treat three-line history records as source line 2 followed by target line 3
