@@ -150,7 +150,7 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
     valid.push(record);
   });
 
-  return { valid, invalid, duplicates: invalid.filter((record) => record.reason.startsWith("Duplicate")) as unknown as ParsedRecord[] };
+  return { valid, invalid, duplicates: [] };
 }
 
 export function formatNumber(value: number) {
@@ -169,9 +169,9 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
   const orderedDraws = [...inputDraws].sort((a, b) => a.drawDate.localeCompare(b.drawDate) || a.drawNumber - b.drawNumber);
   const transitionMap = new Map<string, TransitionGroup>();
   const sources: SourceSummary[] = POSITIONS.map((position) => {
-    const number = currentNumbers[position - 1];
+    const number = currentNumbers[position - 1] ?? 0;
     const matches = orderedDraws.filter((draw) => draw.numbers[position - 1] === number);
-    const withNext = matches.filter((_, index) => orderedDraws.indexOf(matches[index] as HistoricalDraw) !== -1);
+    const withNext = matches.filter((draw) => orderedDraws.findIndex((item) => item.id === draw.id) < orderedDraws.length - 1);
     return { position, number, historicalOccurrences: matches.length, occurrencesWithNextDraw: withNext.length, transitions: [] };
   });
 
@@ -182,7 +182,7 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
       const nextDraw = historicalIndex >= 0 ? orderedDraws[historicalIndex + 1] : undefined;
       if (!nextDraw) continue;
       for (const targetPosition of POSITIONS) {
-        const targetNumber = nextDraw.numbers[targetPosition - 1];
+        const targetNumber = nextDraw.numbers[targetPosition - 1] ?? 0;
         const key = `${source.position}|${source.number}|${targetPosition}|${targetNumber}`;
         const existing = transitionMap.get(key);
         const evidence = { historicalDraw, nextDraw };

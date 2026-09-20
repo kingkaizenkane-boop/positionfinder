@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,7 +113,13 @@ function AnalyzerApp() {
       setSaving(false);
       return;
     }
-    const drawRows = analysis.orderedDraws.map((draw) => ({ game_id: game.id, draw_number: draw.drawNumber, draw_date: draw.drawDate, ...Object.fromEntries(draw.numbers.map((number, index) => [`p${index + 1}`, number])) }));
+    const drawRows = analysis.orderedDraws.map((draw) => ({
+      game_id: game.id,
+      draw_number: draw.drawNumber,
+      draw_date: draw.drawDate,
+      p1: draw.numbers[0], p2: draw.numbers[1], p3: draw.numbers[2], p4: draw.numbers[3], p5: draw.numbers[4],
+      p6: draw.numbers[5], p7: draw.numbers[6], p8: draw.numbers[7], p9: draw.numbers[8], p10: draw.numbers[9],
+    }));
     const { data: savedDraws, error: drawError } = await supabase.from("historical_draws").insert(drawRows).select("id, draw_number, draw_date, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10");
     if (drawError || !savedDraws) {
       setNotice("The analysis details could not be saved. Please try again.");
@@ -125,7 +131,8 @@ function AnalyzerApp() {
       game_name: gameName,
       provider,
       played_date: playedDate,
-      ...Object.fromEntries(currentNumbers.map((number, index) => [`current_p${index + 1}`, number])),
+      current_p1: currentNumbers[0], current_p2: currentNumbers[1], current_p3: currentNumbers[2], current_p4: currentNumbers[3], current_p5: currentNumbers[4],
+      current_p6: currentNumbers[5], current_p7: currentNumbers[6], current_p8: currentNumbers[7], current_p9: currentNumbers[8], current_p10: currentNumbers[9],
       minimum_occurrences: Number(minimumOccurrences),
     }).select("id").single();
     if (sessionError || !session) {
@@ -142,7 +149,7 @@ function AnalyzerApp() {
       source_number: transition.sourceNumber,
       target_position: transition.targetPosition,
       target_number: transition.targetNumber,
-    }))).filter((row) => row.historical_draw_id && row.next_draw_id);
+    }))).filter((row): row is typeof row & { historical_draw_id: string; next_draw_id: string } => Boolean(row.historical_draw_id && row.next_draw_id));
     if (transitionRows.length > 0) await supabase.from("transitions").insert(transitionRows);
     setSaving(false);
     setNotice("Analysis saved to your workspace.");
@@ -198,7 +205,7 @@ function NewAnalysis({ gameName, setGameName, provider, setProvider, playedDate,
 function HistoricalData({ historyText, setHistoryText, parsed, visibleInvalid, removeInvalid }: { historyText: string; setHistoryText: (value: string) => void; parsed: ReturnType<typeof parseHistoricalGames>; visibleInvalid: ReturnType<typeof parseHistoricalGames>["invalid"]; removeInvalid: (line: number) => void }) { return <div className="space-y-8"><PageHeading eyebrow="Historical data" title="Inspect the chronological source library" description="The analyzer sorts by draw date, then draw number, and never uses a draw as its own following draw." action={<Button variant="outline"><Upload className="size-4" /> Import dataset</Button>} /><Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base">Imported records</CardTitle><div className="flex gap-2"><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{parsed.valid.length} valid</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300">{visibleInvalid.length} invalid</Badge></div></div></CardHeader><CardContent><Textarea value={historyText} onChange={(event) => setHistoryText(event.target.value)} className="min-h-[210px] font-mono text-xs leading-6" />{visibleInvalid.length > 0 && <div className="mt-5 space-y-2">{visibleInvalid.map((item) => <div key={item.sourceLine} className="flex items-center justify-between border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs"><span><span className="font-semibold text-amber-300">Line {item.sourceLine}</span> · {item.reason}</span><Button variant="ghost" size="icon" onClick={() => removeInvalid(item.sourceLine)} aria-label={`Remove line ${item.sourceLine}`}><Trash2 className="size-4" /></Button></div>)}</div>}</CardContent></Card><div className="grid gap-3">{parsed.valid.map((draw) => <div key={draw.id} className="grid gap-2 border border-border bg-card/40 px-4 py-3 sm:grid-cols-[90px_130px_1fr] sm:items-center"><span className="font-mono text-sm text-primary">{draw.drawNumber.toString().padStart(4, "0")}</span><span className="text-xs text-muted-foreground">{draw.drawDate}</span><span className="font-mono text-sm">{formatDrawNumbers(draw.numbers)}</span></div>)}</div></div>; }
 
 function Dashboard({ analysis, currentNumbers, gameName, provider, playedDate, minimumOccurrences, setMinimumOccurrences, sourceFilter, setSourceFilter, targetFilter, setTargetFilter, search, setSearch, activeMatrixCell, setActiveMatrixCell, expandedTransition, setExpandedTransition, activeSource, setActiveSource, onSave, saving, onNew }: { analysis: AnalysisResult | null; currentNumbers: Numbers; gameName: string; provider: string; playedDate: string; minimumOccurrences: string; setMinimumOccurrences: (value: string) => void; sourceFilter: string; setSourceFilter: (value: string) => void; targetFilter: string; setTargetFilter: (value: string) => void; search: string; setSearch: (value: string) => void; activeMatrixCell: { source: number; target: number } | null; setActiveMatrixCell: (value: { source: number; target: number } | null) => void; expandedTransition: string | null; setExpandedTransition: (value: string | null) => void; activeSource: string; setActiveSource: (value: string) => void; onSave: () => void; saving: boolean; onNew: () => void }) {
-  const result = analysis ?? analyzeTransitions(currentNumbers, parseHistoricalGames(SAMPLE_HISTORY).valid, Number(minimumOccurrences));
+  const result = analyzeTransitions(currentNumbers, analysis?.orderedDraws ?? parseHistoricalGames(SAMPLE_HISTORY).valid, Number(minimumOccurrences));
   const filtered = result.transitions.filter((transition) => (sourceFilter === "all" || String(transition.sourcePosition) === sourceFilter) && (targetFilter === "all" || String(transition.targetPosition) === targetFilter) && (!search || `${positionLabel(transition.sourcePosition, transition.sourceNumber)} ${positionLabel(transition.targetPosition, transition.targetNumber)}`.toLowerCase().includes(search.toLowerCase())));
   const matrixDetails = activeMatrixCell ? filtered.filter((item) => item.sourcePosition === activeMatrixCell.source && item.targetPosition === activeMatrixCell.target) : [];
   return <div className="space-y-8"><PageHeading eyebrow="Dashboard" title="Repeated positional transitions" description="Read every result as a historical source-position → target-position relationship, not as simple number reappearance." action={<div className="flex gap-2"><Button variant="outline" onClick={onSave} disabled={saving || !analysis}><Save className="size-4" /> {saving ? "Saving…" : "Save analysis"}</Button><Button onClick={onNew}><Plus className="size-4" /> New analysis</Button></div>} />
