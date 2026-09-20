@@ -301,5 +301,5 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
   }
 
   const analyzedDraws = [...new Map([...orderedDraws, ...orderedDraws.flatMap((draw) => draw.followingDraw ? [draw.followingDraw] : [])].map((draw) => [draw.id, draw])).values()];
-  return { orderedDraws, sources, transitions, allTransitions: repeatedTransitions, convergence, matrix: [...cellMap.values()], duplicateCount, analyzedDrawCount: analyzedDraws.length };
+  return { orderedDraws, sources, transitions, allTransitions, convergence, matrix: [...cellMap.values()], duplicateCount, analyzedDrawCount: analyzedDraws.length };
 }
