@@ -1,0 +1,5 @@
+- [ ] Enable Lovable Cloud and add persistent schema
+- [ ] Build parser and positional transition analysis engine
+- [ ] Build dashboard, New Analysis, Historical Data, Saved Analyses, Settings views
+- [ ] Wire persistence and saved analyses
+- [ ] Validate with sample and convergence data
