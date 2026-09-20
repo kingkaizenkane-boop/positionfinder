@@ -87,9 +87,10 @@ const toDateKey = (value: string) => {
   if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part))) return null;
   const [first, second, third] = parts;
   if (first === undefined || second === undefined || third === undefined) return null;
-  const year = first > 31 ? first : third;
-  const month = first > 31 ? second : second;
-  const day = first > 31 ? third : first;
+  const yearFirst = first > 31;
+  const year = yearFirst ? first : third;
+  const month = second;
+  const day = yearFirst ? third : first;
   if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null;
   return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
 };
