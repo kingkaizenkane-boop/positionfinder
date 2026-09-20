@@ -5,3 +5,4 @@
 - [x] Validate with sample and convergence data
 - [x] Treat three-line history records as source line 2 followed by target line 3
 - [x] Add deletion for saved analyses
+- [x] Correct analysis to compare every source position with every target position across consecutive draws
