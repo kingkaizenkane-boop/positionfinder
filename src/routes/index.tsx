@@ -8,6 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   analyzeTransitions,
   formatDrawNumbers,
   formatNumber,
@@ -186,7 +196,7 @@ function AnalyzerApp() {
           {view === "dashboard" && <Dashboard analysis={analysis} currentNumbers={currentNumbers} gameName={gameName} provider={provider} playedDate={playedDate} minimumOccurrences={minimumOccurrences} setMinimumOccurrences={setMinimumOccurrences} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} targetFilter={targetFilter} setTargetFilter={setTargetFilter} search={search} setSearch={setSearch} activeMatrixCell={activeMatrixCell} setActiveMatrixCell={setActiveMatrixCell} expandedTransition={expandedTransition} setExpandedTransition={setExpandedTransition} activeSource={activeSource} setActiveSource={setActiveSource} onSave={saveAnalysis} saving={saving} onNew={() => setView("new")} />}
           {view === "new" && <NewAnalysis gameName={gameName} setGameName={setGameName} provider={provider} setProvider={setProvider} playedDate={playedDate} setPlayedDate={setPlayedDate} currentNumbers={currentNumbers} setCurrentNumbers={setCurrentNumbers} historyText={historyText} setHistoryText={setHistoryText} parsed={parsed} visibleInvalid={visibleInvalid} removeInvalid={removeInvalid} runAnalysis={runAnalysis} />}
           {view === "history" && <HistoricalData historyText={historyText} setHistoryText={setHistoryText} parsed={parsed} visibleInvalid={visibleInvalid} removeInvalid={removeInvalid} />}
-          {view === "saved" && <SavedAnalyses onOpen={(row) => { setGameName(row.game_name); setProvider(row.provider); setPlayedDate(row.played_date); setCurrentNumbers([row.current_p1, row.current_p2, row.current_p3, row.current_p4, row.current_p5, row.current_p6, row.current_p7, row.current_p8, row.current_p9, row.current_p10]); setMinimumOccurrences(String(row.minimum_occurrences)); setView("dashboard"); setNotice("Saved session loaded. Re-run it with the current historical dataset to refresh evidence."); }} />}
+           {view === "saved" && <SavedAnalyses onOpen={(row) => { setGameName(row.game_name); setProvider(row.provider); setPlayedDate(row.played_date); setCurrentNumbers([row.current_p1, row.current_p2, row.current_p3, row.current_p4, row.current_p5, row.current_p6, row.current_p7, row.current_p8, row.current_p9, row.current_p10]); setMinimumOccurrences(String(row.minimum_occurrences)); setView("dashboard"); setNotice("Saved session loaded. Re-run it with the current historical dataset to refresh evidence."); }} />}
           {view === "settings" && <SettingsView />}
         </main>
       </div>
@@ -237,8 +247,70 @@ function Matrix({ result, activeCell, onSelect }: { result: AnalysisResult; acti
 function EvidenceAccordion({ transition, expanded, onToggle }: { transition: TransitionGroup; expanded: boolean; onToggle: () => void }) { return <Card><button className="flex w-full items-center justify-between p-4 text-left" onClick={onToggle}><span className="font-mono text-sm font-semibold">{positionLabel(transition.sourcePosition, transition.sourceNumber)} <span className="text-muted-foreground">→</span> {positionLabel(transition.targetPosition, transition.targetNumber)}</span><span className="flex items-center gap-3"><Badge variant="outline" className="border-primary/30 text-primary">{transition.occurrenceCount} occurrences</Badge>{expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}</span></button>{expanded && <CardContent className="border-t border-border pt-4"><EvidenceList transition={transition} /></CardContent>}</Card>; }
 function EvidenceList({ transition }: { transition: TransitionGroup }) { return <div className="space-y-4">{transition.evidence.map((evidence, index) => <div key={`${evidence.historicalDraw.id}-${index}`} className="border border-border/70 bg-background/40 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-semibold uppercase tracking-wider text-primary">Occurrence #{index + 1}</div><div className="text-xs text-muted-foreground">Historical draw {evidence.historicalDraw.drawNumber} · {evidence.historicalDraw.drawDate}</div></div><div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr] lg:items-center"><DrawMini label="Historical draw" draw={evidence.historicalDraw} highlightPosition={transition.sourcePosition} /><div className="flex justify-center text-primary"><ArrowDown className="size-5 lg:rotate-[-90deg]" /></div><DrawMini label="Immediately following draw" draw={evidence.nextDraw} highlightPosition={transition.targetPosition} /></div><div className="mt-4 flex flex-wrap gap-2 text-xs"><Badge className="bg-amber-500/15 text-amber-300 hover:bg-amber-500/15">Source: {positionLabel(transition.sourcePosition, transition.sourceNumber)}</Badge><Badge className="bg-primary/15 text-primary hover:bg-primary/15">Target: {positionLabel(transition.targetPosition, transition.targetNumber)}</Badge></div></div>)}</div>; }
 function DrawMini({ label, draw, highlightPosition }: { label: string; draw: HistoricalDraw; highlightPosition: number }) { return <div><div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div><div className="grid grid-cols-5 gap-1 sm:grid-cols-10">{draw.numbers.map((number, index) => <div key={index} className={cn("border px-1 py-2 text-center font-mono text-xs", index + 1 === highlightPosition ? "border-primary bg-primary/15 text-primary" : "border-border bg-muted/20 text-muted-foreground")}><div className="mb-1 text-[9px]">P{index + 1}</div>{formatNumber(number)}</div>)}</div></div>; }
-function SavedAnalyses({ onOpen }: { onOpen: (row: SavedRow) => void }) { const [rows, setRows] = useState<SavedRow[]>([]); const [loaded, setLoaded] = useState(false); useEffect(() => { let mounted = true; void supabase.from("analysis_sessions").select("*").order("created_at", { ascending: false }).limit(25).then(({ data }) => { if (!mounted) return; setRows((data ?? []) as SavedRow[]); setLoaded(true); }); return () => { mounted = false; }; }, []); return <div className="space-y-8"><PageHeading eyebrow="Saved analyses" title="Reopen prior studies" description="Saved sessions retain the current draw, filters, and underlying transition evidence." /><div className="grid gap-3">{!loaded && <div className="border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">Loading saved sessions…</div>}{rows.length === 0 && loaded && <EmptyState title="No saved analyses yet" description="Run an analysis and save it to build a reusable study history." />}{rows.map((row) => <Card key={row.id}><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div><div className="font-semibold">{row.game_name}</div><div className="mt-1 text-sm text-muted-foreground">{row.provider} · played {row.played_date}</div><div className="mt-3 font-mono text-xs text-primary">{[row.current_p1, row.current_p2, row.current_p3, row.current_p4, row.current_p5].map(formatNumber).join(" ")} <span className="text-muted-foreground">|</span> {[row.current_p6, row.current_p7, row.current_p8, row.current_p9, row.current_p10].map(formatNumber).join(" ")}</div></div><div className="flex items-center gap-4"><div className="text-right"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Minimum</div><div className="font-mono text-sm">{row.minimum_occurrences}+</div></div><Button variant="outline" onClick={() => onOpen(row)}>Open <ArrowRight className="size-4" /></Button></div></CardContent></Card>)}</div></div>; }
-type SavedRow = { id: string; game_name: string; provider: string; played_date: string; minimum_occurrences: number; current_p1: number; current_p2: number; current_p3: number; current_p4: number; current_p5: number; current_p6: number; current_p7: number; current_p8: number; current_p9: number; current_p10: number };
+function SavedAnalyses({ onOpen }: { onOpen: (row: SavedRow) => void }) {
+  const [rows, setRows] = useState<SavedRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SavedRow | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    void supabase.from("analysis_sessions").select("*").order("created_at", { ascending: false }).limit(25).then(({ data }) => {
+      if (!mounted) return;
+      setRows((data ?? []) as SavedRow[]);
+      setLoaded(true);
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  const deleteSavedAnalysis = async () => {
+    if (!pendingDelete) return;
+    const row = pendingDelete;
+    setDeletingId(row.id);
+    setDeleteError("");
+    const { error: sessionError } = await supabase.from("analysis_sessions").delete().eq("id", row.id);
+    if (sessionError) {
+      setDeleteError("This saved analysis could not be deleted. Please try again.");
+      setDeletingId(null);
+      return;
+    }
+    if (row.game_id) {
+      const { error: gameError } = await supabase.from("games").delete().eq("id", row.game_id);
+      if (gameError) {
+        setDeleteError("The saved analysis was removed, but its historical details could not be cleaned up.");
+      }
+    }
+    setRows((currentRows) => currentRows.filter((savedRow) => savedRow.id !== row.id));
+    setPendingDelete(null);
+    setDeletingId(null);
+  };
+
+  return <>
+    <div className="space-y-8">
+      <PageHeading eyebrow="Saved analyses" title="Reopen prior studies" description="Saved sessions retain the current draw, filters, and underlying transition evidence." />
+      {deleteError && <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{deleteError}</div>}
+      <div className="grid gap-3">
+        {!loaded && <div className="border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">Loading saved sessions…</div>}
+        {rows.length === 0 && loaded && <EmptyState title="No saved analyses yet" description="Run an analysis and save it to build a reusable study history." />}
+        {rows.map((row) => <Card key={row.id}><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div><div className="font-semibold">{row.game_name}</div><div className="mt-1 text-sm text-muted-foreground">{row.provider} · played {row.played_date}</div><div className="mt-3 font-mono text-xs text-primary">{[row.current_p1, row.current_p2, row.current_p3, row.current_p4, row.current_p5].map(formatNumber).join(" ")} <span className="text-muted-foreground">|</span> {[row.current_p6, row.current_p7, row.current_p8, row.current_p9, row.current_p10].map(formatNumber).join(" ")}</div></div><div className="flex items-center gap-2"><div className="mr-2 text-right"><div className="text-[10px] uppercase tracking-wider text-muted-foreground">Minimum</div><div className="font-mono text-sm">{row.minimum_occurrences}+</div></div><Button variant="outline" onClick={() => onOpen(row)}>Open <ArrowRight className="size-4" /></Button><Button variant="ghost" size="icon" onClick={() => setPendingDelete(row)} disabled={deletingId !== null} aria-label={`Delete saved analysis ${row.game_name}`} title="Delete saved analysis"><Trash2 className="size-4 text-destructive" /></Button></div></CardContent></Card>)}
+      </div>
+    </div>
+    <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open && deletingId === null) setPendingDelete(null); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete saved analysis?</AlertDialogTitle>
+          <AlertDialogDescription>This will permanently remove “{pendingDelete?.game_name}” and its saved transition evidence.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deletingId !== null}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={(event) => { event.preventDefault(); void deleteSavedAnalysis(); }} disabled={deletingId !== null} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{deletingId !== null ? "Deleting…" : "Delete analysis"}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>;
+}
+type SavedRow = { id: string; game_id: string | null; game_name: string; provider: string; played_date: string; minimum_occurrences: number; current_p1: number; current_p2: number; current_p3: number; current_p4: number; current_p5: number; current_p6: number; current_p7: number; current_p8: number; current_p9: number; current_p10: number };
 function SettingsView() { return <div className="space-y-8"><PageHeading eyebrow="Settings" title="Workspace preferences" description="Keep the analytical workspace focused on observable relationships and traceable evidence." /><div className="grid gap-5 lg:grid-cols-2"><Card><CardHeader><CardTitle className="text-base">Analysis language</CardTitle></CardHeader><CardContent className="space-y-4 text-sm text-muted-foreground"><div className="flex items-center justify-between border-b border-border pb-3"><span>Primary terminology</span><Badge variant="outline">Neutral analytical</Badge></div><div className="flex items-center justify-between border-b border-border pb-3"><span>Default threshold</span><Badge variant="outline">2 occurrences</Badge></div><div className="flex items-center justify-between"><span>Prediction claims</span><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">Disabled</Badge></div></CardContent></Card><Card><CardHeader><CardTitle className="text-base">Data safeguards</CardTitle></CardHeader><CardContent className="space-y-3 text-sm text-muted-foreground"><div className="flex gap-3"><Check className="mt-0.5 size-4 text-emerald-400" />Every transition keeps its historical draw pair.</div><div className="flex gap-3"><Check className="mt-0.5 size-4 text-emerald-400" />Draw positions remain immutable during analysis.</div><div className="flex gap-3"><Check className="mt-0.5 size-4 text-emerald-400" />Duplicate rows are excluded from imported history.</div></CardContent></Card></div></div>; }
 function PageHeading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) { return <div className="flex flex-col gap-5 border-b border-border pb-7 md:flex-row md:items-end md:justify-between"><div><div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">{eyebrow}</div><h1 className="mt-2 text-3xl font-semibold tracking-tight lg:text-4xl">{title}</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p></div>{action}</div>; }
 function SectionHeading({ icon: Icon, title, meta }: { icon: typeof Activity; title: string; meta: string }) { return <div className="mb-4 flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-semibold"><Icon className="size-4 text-primary" />{title}</h2><span className="text-xs text-muted-foreground">{meta}</span></div>; }
