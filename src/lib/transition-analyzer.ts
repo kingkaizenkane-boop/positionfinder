@@ -6,6 +6,7 @@ export type HistoricalDraw = {
   drawNumber: number;
   drawDate: string;
   numbers: Numbers;
+  followingDraw?: HistoricalDraw;
 };
 
 export type ParsedRecord = HistoricalDraw & { sourceLine: number };
@@ -79,6 +80,8 @@ Began 22/01/2020
 
 export const SAMPLE_CURRENT: Numbers = [34, 90, 28, 86, 11, 30, 72, 78, 75, 80];
 
+type NumberLine = { text: string; sourceLine: number };
+
 const toDateKey = (value: string) => {
   const parts = value.split(/[/-]/).map(Number);
   if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part))) return null;
@@ -93,7 +96,7 @@ const toDateKey = (value: string) => {
 
 const toNumbers = (value: string): number[] =>
   value
-    .replace(/\|/g, " ")
+    .replace(/[|,;]/g, " ")
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -102,13 +105,68 @@ const toNumbers = (value: string): number[] =>
 
 const isDrawLine = (line: string) => /^\s*\d+\s*[:\-]/.test(line);
 
-export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; invalid: InvalidRecord[]; duplicates: ParsedRecord[] } {
+const isPlainNumberLine = (line: string) => {
+  if (!line.trim() || /[a-z]/i.test(line) || /[:/\-]/.test(line)) return false;
+  const numbers = toNumbers(line);
+  return numbers.length === 10 && numbers.every((number) => number >= 1 && number <= 90);
+};
+
+const invalidNumbersReason = (numbers: number[]) => {
+  const invalidNumber = numbers.find((number) => number < 1 || number > 90);
+  return invalidNumber === undefined ? `Expected 10 numbers but found ${numbers.length}.` : `Number ${invalidNumber} is outside the valid range 01–90.`;
+};
+
+export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; invalid: InvalidRecord[]; duplicates: ParsedRecord[]; threeLinePairs: number } {
   const valid: ParsedRecord[] = [];
   const invalid: InvalidRecord[] = [];
   const duplicates: ParsedRecord[] = [];
   const seen = new Set<string>();
+  const lines = text.split(/\r?\n/);
+  const plainLines: NumberLine[] = lines.flatMap((line, index) => isPlainNumberLine(line) ? [{ text: line, sourceLine: index + 1 }] : []);
 
-  text.split(/\r?\n/).forEach((line, index) => {
+  if (plainLines.length >= 3 && plainLines.length % 3 === 0) {
+    for (let index = 0; index < plainLines.length; index += 3) {
+      const ignoredLine = plainLines[index];
+      const sourceLine = plainLines[index + 1];
+      const targetLine = plainLines[index + 2];
+      if (!ignoredLine || !sourceLine || !targetLine) continue;
+      const sourceNumbers = toNumbers(sourceLine.text);
+      const targetNumbers = toNumbers(targetLine.text);
+      if (sourceNumbers.length !== 10 || sourceNumbers.some((number) => number < 1 || number > 90)) {
+        invalid.push({ sourceLine: sourceLine.sourceLine, text: sourceLine.text, reason: `Source line: ${invalidNumbersReason(sourceNumbers)}` });
+        continue;
+      }
+      if (targetNumbers.length !== 10 || targetNumbers.some((number) => number < 1 || number > 90)) {
+        invalid.push({ sourceLine: targetLine.sourceLine, text: targetLine.text, reason: `Target line: ${invalidNumbersReason(targetNumbers)}` });
+        continue;
+      }
+      const pairNumber = index / 3;
+      const source: ParsedRecord = {
+        id: `import-pair-${sourceLine.sourceLine}`,
+        drawNumber: pairNumber * 2 + 1,
+        drawDate: "2000-01-01",
+        numbers: sourceNumbers as Numbers,
+        sourceLine: sourceLine.sourceLine,
+        followingDraw: {
+          id: `import-pair-${targetLine.sourceLine}`,
+          drawNumber: pairNumber * 2 + 2,
+          drawDate: "2000-01-01",
+          numbers: targetNumbers as Numbers,
+        },
+      };
+      const key = `${source.numbers.join(",")}|${source.followingDraw.numbers.join(",")}`;
+      if (seen.has(key)) {
+        duplicates.push(source);
+        invalid.push({ sourceLine: sourceLine.sourceLine, text: sourceLine.text, reason: "Duplicate three-line record detected; it will not be counted twice." });
+        continue;
+      }
+      seen.add(key);
+      valid.push(source);
+    }
+    return { valid, invalid, duplicates, threeLinePairs: valid.length };
+  }
+
+  lines.forEach((line, index) => {
     const sourceLine = index + 1;
     const trimmed = line.trim();
     if (!trimmed || !isDrawLine(trimmed)) return;
@@ -152,7 +210,7 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
     valid.push(record);
   });
 
-  return { valid, invalid, duplicates };
+  return { valid, invalid, duplicates, threeLinePairs: 0 };
 }
 
 export function formatNumber(value: number) {
@@ -174,7 +232,7 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
   const sources: SourceSummary[] = POSITIONS.map((position) => {
     const number = currentNumbers[position - 1] ?? 0;
     const matches = orderedDraws.filter((draw) => draw.numbers[position - 1] === number);
-    const withNext = matches.filter((draw) => (drawIndexById.get(draw.id) ?? orderedDraws.length) < orderedDraws.length - 1);
+    const withNext = matches.filter((draw) => draw.followingDraw !== undefined || (drawIndexById.get(draw.id) ?? orderedDraws.length) < orderedDraws.length - 1);
     return { position, number, historicalOccurrences: matches.length, occurrencesWithNextDraw: withNext.length, transitions: [] };
   });
 
@@ -182,7 +240,7 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
     const matches = orderedDraws.filter((draw) => draw.numbers[source.position - 1] === source.number);
     for (const historicalDraw of matches) {
       const historicalIndex = drawIndexById.get(historicalDraw.id) ?? -1;
-      const nextDraw = historicalIndex >= 0 ? orderedDraws[historicalIndex + 1] : undefined;
+      const nextDraw = historicalDraw.followingDraw ?? (historicalIndex >= 0 ? orderedDraws[historicalIndex + 1] : undefined);
       if (!nextDraw) continue;
       for (const targetPosition of POSITIONS) {
         const targetNumber = nextDraw.numbers[targetPosition - 1] ?? 0;
