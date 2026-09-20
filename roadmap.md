@@ -4,3 +4,4 @@
 - [x] Wire persistence and saved analyses
 - [x] Validate with sample and convergence data
 - [x] Treat three-line history records as source line 2 followed by target line 3
+- [x] Add deletion for saved analyses
