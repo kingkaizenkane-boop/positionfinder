@@ -154,7 +154,9 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
           numbers: targetNumbers as Numbers,
         },
       };
-      const key = `${source.numbers.join(",")}|${source.followingDraw.numbers.join(",")}`;
+      const followingDraw = source.followingDraw;
+      if (!followingDraw) continue;
+      const key = `${source.numbers.join(",")}|${followingDraw.numbers.join(",")}`;
       if (seen.has(key)) {
         duplicates.push(source);
         invalid.push({ sourceLine: sourceLine.sourceLine, text: sourceLine.text, reason: "Duplicate three-line record detected; it will not be counted twice." });
