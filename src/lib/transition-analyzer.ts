@@ -46,6 +46,7 @@ export type AnalysisResult = {
   orderedDraws: HistoricalDraw[];
   sources: SourceSummary[];
   transitions: TransitionGroup[];
+  allTransitions: TransitionGroup[];
   convergence: ConvergenceGroup[];
   matrix: MatrixCell[];
   duplicateCount: number;
@@ -206,24 +207,6 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
     });
   });
 
-  if (datedRecords.length >= 3 && datedRecords.length % 3 === 0) {
-    for (let index = 0; index < datedRecords.length; index += 3) {
-      const source = datedRecords[index + 1];
-      const target = datedRecords[index + 2];
-      if (!source || !target) continue;
-      source.followingDraw = target;
-      const key = `${source.drawNumber}|${source.drawDate}|${source.numbers.join(",")}|${target.drawNumber}|${target.drawDate}|${target.numbers.join(",")}`;
-      if (seen.has(key)) {
-        duplicates.push(source);
-        invalid.push({ sourceLine: source.sourceLine, text: lines[source.sourceLine - 1] ?? "", reason: "Duplicate three-line record detected; it will not be counted twice." });
-        continue;
-      }
-      seen.add(key);
-      valid.push(source);
-    }
-    return { valid, invalid, duplicates, threeLinePairs: valid.length };
-  }
-
   datedRecords.forEach((record) => {
     const key = `${record.drawNumber}|${record.drawDate}|${record.numbers.join(",")}`;
     if (seen.has(key)) {
@@ -253,30 +236,31 @@ export function positionLabel(position: number, number?: number) {
 export function analyzeTransitions(currentNumbers: Numbers, inputDraws: HistoricalDraw[], minimumOccurrences = 2, duplicateCount = 0): AnalysisResult {
   const orderedDraws = [...inputDraws].sort((a, b) => a.drawDate.localeCompare(b.drawDate) || a.drawNumber - b.drawNumber);
   const transitionMap = new Map<string, TransitionGroup>();
-  const drawIndexById = new Map(orderedDraws.map((draw, index) => [draw.id, index]));
+  const currentSourceKeys = new Set(currentNumbers.map((number, index) => `${index + 1}|${number}`));
   const sources: SourceSummary[] = POSITIONS.map((position) => {
     const number = currentNumbers[position - 1] ?? 0;
     const matches = orderedDraws.filter((draw) => draw.numbers[position - 1] === number);
-    const withNext = matches.filter((draw) => draw.followingDraw !== undefined || (drawIndexById.get(draw.id) ?? orderedDraws.length) < orderedDraws.length - 1);
+    const withNext = matches.filter((draw) => draw.followingDraw !== undefined || orderedDraws.indexOf(draw) < orderedDraws.length - 1);
     return { position, number, historicalOccurrences: matches.length, occurrencesWithNextDraw: withNext.length, transitions: [] };
   });
 
-  for (const source of sources) {
-    const matches = orderedDraws.filter((draw) => draw.numbers[source.position - 1] === source.number);
-    for (const historicalDraw of matches) {
-      const historicalIndex = drawIndexById.get(historicalDraw.id) ?? -1;
-      const nextDraw = historicalDraw.followingDraw ?? (historicalIndex >= 0 ? orderedDraws[historicalIndex + 1] : undefined);
-      if (!nextDraw) continue;
+  for (let drawIndex = 0; drawIndex < orderedDraws.length; drawIndex += 1) {
+    const historicalDraw = orderedDraws[drawIndex];
+    if (!historicalDraw) continue;
+    const nextDraw = historicalDraw.followingDraw ?? orderedDraws[drawIndex + 1];
+    if (!nextDraw) continue;
+    for (const sourcePosition of POSITIONS) {
+      const sourceNumber = historicalDraw.numbers[sourcePosition - 1] ?? 0;
       for (const targetPosition of POSITIONS) {
         const targetNumber = nextDraw.numbers[targetPosition - 1] ?? 0;
-        const key = `${source.position}|${source.number}|${targetPosition}|${targetNumber}`;
+        const key = `${sourcePosition}|${sourceNumber}|${targetPosition}|${targetNumber}`;
         const existing = transitionMap.get(key);
         const evidence = { historicalDraw, nextDraw };
         if (existing) existing.evidence.push(evidence);
         else transitionMap.set(key, {
           key,
-          sourcePosition: source.position,
-          sourceNumber: source.number,
+          sourcePosition,
+          sourceNumber,
           targetPosition,
           targetNumber,
           occurrenceCount: 1,
@@ -287,10 +271,10 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
   }
 
   const allTransitions = [...transitionMap.values()].map((transition) => ({ ...transition, occurrenceCount: transition.evidence.length }));
-  const transitions = allTransitions
+  const repeatedTransitions = allTransitions
     .filter((transition) => transition.occurrenceCount >= minimumOccurrences)
     .sort((a, b) => b.occurrenceCount - a.occurrenceCount || a.sourcePosition - b.sourcePosition || a.targetPosition - b.targetPosition || a.targetNumber - b.targetNumber);
-  const visibleKeys = new Set(transitions.map((transition) => transition.key));
+  const transitions = repeatedTransitions.filter((transition) => currentSourceKeys.has(`${transition.sourcePosition}|${transition.sourceNumber}`));
   for (const source of sources) source.transitions = transitions.filter((transition) => transition.sourcePosition === source.position && transition.sourceNumber === source.number);
 
   const convergenceMap = new Map<string, TransitionGroup[]>();
@@ -309,12 +293,13 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
     .sort((a, b) => b.sources.length - a.sources.length || b.sources.reduce((sum, item) => sum + item.occurrenceCount, 0) - a.sources.reduce((sum, item) => sum + item.occurrenceCount, 0));
 
   const cellMap = new Map<string, MatrixCell>();
-  for (const transition of allTransitions.filter((item) => visibleKeys.has(item.key))) {
+  for (const transition of repeatedTransitions) {
     const key = `${transition.sourcePosition}|${transition.targetPosition}`;
     const cell = cellMap.get(key);
     if (cell) cell.count += transition.occurrenceCount;
     else cellMap.set(key, { sourcePosition: transition.sourcePosition, targetPosition: transition.targetPosition, count: transition.occurrenceCount });
   }
 
-  return { orderedDraws, sources, transitions, convergence, matrix: [...cellMap.values()], duplicateCount, analyzedDrawCount: orderedDraws.length };
+  const analyzedDraws = [...new Map([...orderedDraws, ...orderedDraws.flatMap((draw) => draw.followingDraw ? [draw.followingDraw] : [])].map((draw) => [draw.id, draw])).values()];
+  return { orderedDraws, sources, transitions, allTransitions, convergence, matrix: [...cellMap.values()], duplicateCount, analyzedDrawCount: analyzedDraws.length };
 }
