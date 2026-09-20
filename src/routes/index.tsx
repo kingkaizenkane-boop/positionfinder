@@ -63,14 +63,13 @@ export const Route = createFileRoute("/")({
 });
 
 type View = "dashboard" | "new" | "history" | "saved" | "settings";
-const today = new Date().toISOString().slice(0, 10);
 
 function AnalyzerApp() {
   const [view, setView] = useState<View>("dashboard");
   const [mobileNav, setMobileNav] = useState(false);
   const [gameName, setGameName] = useState("Better Chance");
   const [provider, setProvider] = useState("Golden Chance Vision");
-  const [playedDate, setPlayedDate] = useState(today);
+  const [playedDate, setPlayedDate] = useState("");
   const [currentNumbers, setCurrentNumbers] = useState<Numbers>(SAMPLE_CURRENT);
   const [historyText, setHistoryText] = useState(SAMPLE_HISTORY);
   const [minimumOccurrences, setMinimumOccurrences] = useState("2");
@@ -84,6 +83,9 @@ function AnalyzerApp() {
   const [activeSource, setActiveSource] = useState("all");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setPlayedDate(new Date().toISOString().slice(0, 10));
+  }, []);
   const parsed = useMemo(() => parseHistoricalGames(historyText), [historyText]);
   const visibleInvalid = parsed.invalid.filter((item) => !invalidDismissed.includes(item.sourceLine));
 
@@ -93,7 +95,7 @@ function AnalyzerApp() {
       return;
     }
     if (parsed.valid.length < 2) {
-      setNotice("Add at least two valid historical draws so the following-draw relationship can be inspected.");
+      setNotice("Add at least two valid source-to-following draw pairs so repeated relationships can be inspected.");
       return;
     }
     setAnalysis(analyzeTransitions(currentNumbers, parsed.valid, Number(minimumOccurrences), parsed.duplicates.length));
@@ -199,7 +201,7 @@ function NewAnalysis({ gameName, setGameName, provider, setProvider, playedDate,
 
   return <div className="space-y-8"><PageHeading eyebrow="New analysis" title="Build a positional transition study" description="Set the current draw, load chronological history, then inspect exact source-position → target-position relationships." action={<Button onClick={runAnalysis}><Play className="size-4" /> Run analysis</Button>} />
     <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]"><Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Target className="size-4 text-primary" /> Current game</CardTitle></CardHeader><CardContent className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Game name"><Input value={gameName} onChange={(event) => setGameName(event.target.value)} /></Field><Field label="Provider"><Input value={provider} onChange={(event) => setProvider(event.target.value)} /></Field><Field label="Date played"><Input type="date" value={playedDate} onChange={(event) => setPlayedDate(event.target.value)} /></Field></div><div><div className="mb-3 flex items-center justify-between"><label className="text-sm font-medium">Current 10 numbers</label><span className="text-xs text-muted-foreground">Ordered input · 01–90</span></div><div className="grid grid-cols-5 gap-2 sm:grid-cols-10">{currentNumbers.map((number, index) => <div key={index} className="space-y-1"><div className="text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">P{index + 1}</div><Input inputMode="numeric" maxLength={2} value={number === 0 ? "" : editingIndex === index ? String(number) : formatNumber(number)} onFocus={() => setEditingIndex(index)} onBlur={() => setEditingIndex(null)} onChange={(event) => { const next = [...currentNumbers] as Numbers; const raw = event.target.value.replace(/\D/g, ""); next[index] = raw ? Math.min(90, Number(raw)) : 0; setCurrentNumbers(next); }} className="px-1 text-center font-mono text-lg" /></div>)}</div><div className="mt-4 flex items-center justify-center gap-2 font-mono text-sm text-primary"><span>{currentNumbers.slice(0, 5).map(formatNumber).join(" ")}</span><span className="text-muted-foreground">|</span><span>{currentNumbers.slice(5).map(formatNumber).join(" ")}</span></div></div></CardContent></Card>
-       <Card><CardHeader><div className="flex items-center justify-between"><div><CardTitle className="flex items-center gap-2 text-base"><Upload className="size-4 text-primary" /> Paste historical games</CardTitle><p className="mt-1 text-sm text-muted-foreground">Standard dated draws are supported. For three-line records, line 1 is ignored, line 2 is matched to the current numbers, and only line 3 is searched as the following result.</p></div><Badge variant="outline" className="border-primary/30 text-primary">{parsed.valid.length} valid</Badge></div></CardHeader><CardContent><Textarea value={historyText} onChange={(event) => setHistoryText(event.target.value)} className="min-h-[340px] resize-y font-mono text-xs leading-6" placeholder="01 02 03 04 05 06 07 08 09 10\n34 11 12 13 14 15 72 17 18 19\n20 66 22 23 24 25 26 27 28 29" /><div className="mt-4 flex flex-wrap gap-2 text-xs">{parsed.threeLinePairs > 0 && <Badge variant="outline" className="border-primary/30 text-primary">Three-line mode · line 2 → line 3</Badge>}<Badge variant="outline" className="border-emerald-500/30 text-emerald-400"><Check className="mr-1 size-3" /> {parsed.valid.length} detected</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300"><X className="mr-1 size-3" /> {visibleInvalid.length} invalid</Badge></div>{visibleInvalid.length > 0 && <div className="mt-4 space-y-2">{visibleInvalid.map((item) => <div key={item.sourceLine} className="flex items-start justify-between gap-3 border border-amber-500/20 bg-amber-500/5 p-3 text-xs"><div><div className="font-semibold text-amber-300">Line {item.sourceLine}</div><div className="mt-1 text-muted-foreground">{item.reason}</div></div><Button variant="ghost" size="icon" onClick={() => removeInvalid(item.sourceLine)} aria-label={`Remove line ${item.sourceLine}`}><Trash2 className="size-4 text-muted-foreground" /></Button></div>)}</div>}</CardContent></Card></div>
+        <Card><CardHeader><div className="flex items-center justify-between"><div><CardTitle className="flex items-center gap-2 text-base"><Upload className="size-4 text-primary" /> Paste historical games</CardTitle><p className="mt-1 text-sm text-muted-foreground">Three-line records are read as a pair: line 1 is ignored, line 2 is matched to the current numbers, and only line 3 is searched for the following result.</p></div><Badge variant="outline" className="border-primary/30 text-primary">{parsed.valid.length} valid</Badge></div></CardHeader><CardContent><Textarea value={historyText} onChange={(event) => setHistoryText(event.target.value)} className="min-h-[340px] resize-y font-mono text-xs leading-6" placeholder="0263: 14/04/2025: 51 53 25 62 32 | 31 90 35 24 10\n0264: 21/04/2025: 64 89 76 30 87 | 01 86 73 45 07\n0265: 28/04/2025: 24 49 32 28 54 | 67 72 45 56 69" /><div className="mt-4 flex flex-wrap gap-2 text-xs">{parsed.threeLinePairs > 0 && <Badge variant="outline" className="border-primary/30 text-primary">Three-line mode · line 2 → line 3</Badge>}<Badge variant="outline" className="border-emerald-500/30 text-emerald-400"><Check className="mr-1 size-3" /> {parsed.valid.length} detected</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300"><X className="mr-1 size-3" /> {visibleInvalid.length} invalid</Badge></div>{visibleInvalid.length > 0 && <div className="mt-4 space-y-2">{visibleInvalid.map((item) => <div key={item.sourceLine} className="flex items-start justify-between gap-3 border border-amber-500/20 bg-amber-500/5 p-3 text-xs"><div><div className="font-semibold text-amber-300">Line {item.sourceLine}</div><div className="mt-1 text-muted-foreground">{item.reason}</div></div><Button variant="ghost" size="icon" onClick={() => removeInvalid(item.sourceLine)} aria-label={`Remove line ${item.sourceLine}`}><Trash2 className="size-4 text-muted-foreground" /></Button></div>)}</div>}</CardContent></Card></div>
   </div>;
 }
 

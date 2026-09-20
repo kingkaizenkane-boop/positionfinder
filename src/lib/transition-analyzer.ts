@@ -87,9 +87,10 @@ const toDateKey = (value: string) => {
   if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part))) return null;
   const [first, second, third] = parts;
   if (first === undefined || second === undefined || third === undefined) return null;
-  const year = first > 31 ? first : third;
-  const month = first > 31 ? second : second;
-  const day = first > 31 ? third : first;
+  const yearFirst = first > 31;
+  const year = yearFirst ? first : third;
+  const month = second;
+  const day = yearFirst ? third : first;
   if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null;
   return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
 };
@@ -168,6 +169,7 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
     return { valid, invalid, duplicates, threeLinePairs: valid.length };
   }
 
+  const datedRecords: ParsedRecord[] = [];
   lines.forEach((line, index) => {
     const sourceLine = index + 1;
     const trimmed = line.trim();
@@ -195,17 +197,38 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
       invalid.push({ sourceLine, text: line, reason: `Number ${invalidNumber} is outside the valid range 01–90.` });
       return;
     }
-    const record: ParsedRecord = {
+    datedRecords.push({
       id: `import-${sourceLine}-${drawNumber}`,
       drawNumber,
       drawDate,
       numbers: numbers as Numbers,
       sourceLine,
-    };
-    const key = `${drawNumber}|${drawDate}|${numbers.join(",")}`;
+    });
+  });
+
+  if (datedRecords.length >= 3 && datedRecords.length % 3 === 0) {
+    for (let index = 0; index < datedRecords.length; index += 3) {
+      const source = datedRecords[index + 1];
+      const target = datedRecords[index + 2];
+      if (!source || !target) continue;
+      source.followingDraw = target;
+      const key = `${source.drawNumber}|${source.drawDate}|${source.numbers.join(",")}|${target.drawNumber}|${target.drawDate}|${target.numbers.join(",")}`;
+      if (seen.has(key)) {
+        duplicates.push(source);
+        invalid.push({ sourceLine: source.sourceLine, text: lines[source.sourceLine - 1] ?? "", reason: "Duplicate three-line record detected; it will not be counted twice." });
+        continue;
+      }
+      seen.add(key);
+      valid.push(source);
+    }
+    return { valid, invalid, duplicates, threeLinePairs: valid.length };
+  }
+
+  datedRecords.forEach((record) => {
+    const key = `${record.drawNumber}|${record.drawDate}|${record.numbers.join(",")}`;
     if (seen.has(key)) {
       duplicates.push(record);
-      invalid.push({ sourceLine, text: line, reason: "Duplicate draw detected; it will not be counted twice." });
+      invalid.push({ sourceLine: record.sourceLine, text: lines[record.sourceLine - 1] ?? "", reason: "Duplicate draw detected; it will not be counted twice." });
       return;
     }
     seen.add(key);
