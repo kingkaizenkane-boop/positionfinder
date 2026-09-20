@@ -105,6 +105,7 @@ const isDrawLine = (line: string) => /^\s*\d+\s*[:\-]/.test(line);
 export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; invalid: InvalidRecord[]; duplicates: ParsedRecord[] } {
   const valid: ParsedRecord[] = [];
   const invalid: InvalidRecord[] = [];
+  const duplicates: ParsedRecord[] = [];
   const seen = new Set<string>();
 
   text.split(/\r?\n/).forEach((line, index) => {
@@ -143,6 +144,7 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
     };
     const key = `${drawNumber}|${drawDate}|${numbers.join(",")}`;
     if (seen.has(key)) {
+      duplicates.push(record);
       invalid.push({ sourceLine, text: line, reason: "Duplicate draw detected; it will not be counted twice." });
       return;
     }
@@ -150,7 +152,7 @@ export function parseHistoricalGames(text: string): { valid: ParsedRecord[]; inv
     valid.push(record);
   });
 
-  return { valid, invalid, duplicates: [] };
+  return { valid, invalid, duplicates };
 }
 
 export function formatNumber(value: number) {
@@ -165,20 +167,21 @@ export function positionLabel(position: number, number?: number) {
   return `P${position}${number === undefined ? "" : `:${formatNumber(number)}`}`;
 }
 
-export function analyzeTransitions(currentNumbers: Numbers, inputDraws: HistoricalDraw[], minimumOccurrences = 2): AnalysisResult {
+export function analyzeTransitions(currentNumbers: Numbers, inputDraws: HistoricalDraw[], minimumOccurrences = 2, duplicateCount = 0): AnalysisResult {
   const orderedDraws = [...inputDraws].sort((a, b) => a.drawDate.localeCompare(b.drawDate) || a.drawNumber - b.drawNumber);
   const transitionMap = new Map<string, TransitionGroup>();
+  const drawIndexById = new Map(orderedDraws.map((draw, index) => [draw.id, index]));
   const sources: SourceSummary[] = POSITIONS.map((position) => {
     const number = currentNumbers[position - 1] ?? 0;
     const matches = orderedDraws.filter((draw) => draw.numbers[position - 1] === number);
-    const withNext = matches.filter((draw) => orderedDraws.findIndex((item) => item.id === draw.id) < orderedDraws.length - 1);
+    const withNext = matches.filter((draw) => (drawIndexById.get(draw.id) ?? orderedDraws.length) < orderedDraws.length - 1);
     return { position, number, historicalOccurrences: matches.length, occurrencesWithNextDraw: withNext.length, transitions: [] };
   });
 
   for (const source of sources) {
     const matches = orderedDraws.filter((draw) => draw.numbers[source.position - 1] === source.number);
     for (const historicalDraw of matches) {
-      const historicalIndex = orderedDraws.findIndex((draw) => draw.id === historicalDraw.id);
+      const historicalIndex = drawIndexById.get(historicalDraw.id) ?? -1;
       const nextDraw = historicalIndex >= 0 ? orderedDraws[historicalIndex + 1] : undefined;
       if (!nextDraw) continue;
       for (const targetPosition of POSITIONS) {
@@ -230,5 +233,5 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
     else cellMap.set(key, { sourcePosition: transition.sourcePosition, targetPosition: transition.targetPosition, count: transition.occurrenceCount });
   }
 
-  return { orderedDraws, sources, transitions, convergence, matrix: [...cellMap.values()], duplicateCount: 0, analyzedDrawCount: orderedDraws.length };
+  return { orderedDraws, sources, transitions, convergence, matrix: [...cellMap.values()], duplicateCount, analyzedDrawCount: orderedDraws.length };
 }
