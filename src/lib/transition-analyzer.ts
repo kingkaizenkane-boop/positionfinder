@@ -79,7 +79,7 @@ export const MINIMUM_OPTIONS = [1, 2, 3, 4, 5, 10] as const;
 type NumberLine = { text: string; sourceLine: number };
 const DEFAULT_GAME_NAME = "Unspecified game";
 
-const normalizeGameName = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+export const normalizeGameName = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
 const toDateKey = (value: string) => {
   const parts = value.split(/[/-]/).map(Number);

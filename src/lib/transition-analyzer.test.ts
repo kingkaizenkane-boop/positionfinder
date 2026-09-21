@@ -4,6 +4,7 @@ import {
   analyzeTransitions,
   formatDrawNumbers,
   formatNumber,
+  normalizeGameName,
   parseHistoricalGames,
   type HistoricalDraw,
   type Numbers,
@@ -93,6 +94,12 @@ Golden Chance Albarka
     expect(parsed.valid).toHaveLength(1);
     expect(parsed.duplicates).toHaveLength(1);
     expect(parsed.invalid[0]?.reason).toContain("Duplicate draw detected");
+  });
+
+  it("normalizes logical game names by trimming, collapsing whitespace, and ignoring case", () => {
+    expect(normalizeGameName("  Golden   Chance Albarka  ")).toBe("golden chance albarka");
+    expect(normalizeGameName("Golden Chance Albarka")).toBe(normalizeGameName("golden chance albarka"));
+    expect(normalizeGameName("Golden Chance Albarka")).not.toBe(normalizeGameName("Golden Chance Bazooka"));
   });
 });
 
