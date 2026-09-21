@@ -57,7 +57,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       }
     });
     return () => { mounted = false; };
-  }, [onProviderChange, provider]);
+  }, [initialProvider]);
 
   const preview = useMemo(() => parsed, [parsed]);
   const validDraws = preview?.games.flatMap((game) => game.valid) ?? [];
