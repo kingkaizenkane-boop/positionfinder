@@ -6,3 +6,5 @@
 - [x] Treat three-line history records as source line 2 followed by target line 3
 - [x] Add deletion for saved analyses
 - [x] Correct analysis to compare every source position with every target position across consecutive draws
+- [x] Add smart historical importer with game detection, compact-number normalization, validation, duplicate and gap preview
+- [x] Add confirmed batched imports, audit history, provider selection, and reuse of existing games and historical draws
