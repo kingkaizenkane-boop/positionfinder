@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDrawNumbers, formatNumber, parseHistoricalGames, type Numbers, type ParsedGame, type ParsedImport } from "@/lib/transition-analyzer";
-import { Check, ChevronDown, ChevronRight, Database, FileWarning, Upload, X } from "lucide-react";
+import { formatDrawNumbers, parseHistoricalGames, type Numbers, type ParsedGame, type ParsedImport } from "@/lib/transition-analyzer";
+import { ChevronDown, ChevronRight, Database, FileWarning, Upload, X } from "lucide-react";
 
 type SmartHistoricalImporterProps = {
   initialProvider: string;
@@ -25,6 +25,7 @@ const CHUNK_SIZE = 250;
 const canonicalText = (games: ParsedGame[]) => games.filter((game) => game.valid.length > 0).map((game) => [game.name, ...game.valid.sort((a, b) => a.drawNumber - b.drawNumber).map((draw) => `${draw.drawNumber.toString().padStart(4, "0")}: ${draw.drawDate}: ${formatDrawNumbers(draw.numbers)}`)].join("\n")).join("\n\n");
 
 const drawKey = (draw: { drawNumber: number; drawDate: string; numbers: Numbers }) => `${draw.drawNumber}|${draw.drawDate}|${draw.numbers.join(",")}`;
+const isDuplicate = (reason: string) => reason.toLowerCase().startsWith("duplicate");
 
 const chunk = <T,>(items: T[], size: number) => Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, index * size + size));
 
@@ -61,6 +62,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
 
   const preview = useMemo(() => parsed, [parsed]);
   const validDraws = preview?.games.flatMap((game) => game.valid) ?? [];
+  const invalidCount = preview?.invalid.filter((item) => !isDuplicate(item.reason)).length ?? 0;
   const progress = status.total > 0 ? (status.current / status.total) * 100 : 0;
 
   const parsePreview = () => {
@@ -94,7 +96,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       raw_text: rawText,
       games_detected: preview.games.filter((game) => game.valid.length > 0 || game.invalid.length > 0).length,
       draws_detected: preview.drawsDetected,
-      draws_rejected: preview.invalid.length,
+      draws_rejected: invalidCount,
       duplicates_skipped: preview.duplicates.length,
       status: "importing",
     }).select("id").single();
@@ -138,7 +140,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       if (batchUpdateError) throw new Error("batch");
       onHistoryImported(canonicalText(preview.games));
       onProviderChange(selectedProvider);
-      setImportHistory((rows) => [{ id: batch.id, provider: selectedProvider, games_detected: preview.games.length, draws_imported: imported, draws_rejected: preview.invalid.length, duplicates_skipped: preview.duplicates.length, created_at: new Date().toISOString(), status: "completed" }, ...rows].slice(0, 8));
+      setImportHistory((rows) => [{ id: batch.id, provider: selectedProvider, games_detected: preview.games.length, draws_imported: imported, draws_rejected: invalidCount, duplicates_skipped: preview.duplicates.length, created_at: new Date().toISOString(), status: "completed" }, ...rows].slice(0, 8));
       setStatus({ kind: "success", message: `Import complete. ${imported} valid records are ready for analysis.`, current: imported, total: validDraws.length });
       setParsed(null);
     } catch {
@@ -161,10 +163,10 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       </CardContent>
     </Card>
 
-    {preview && <Card><CardHeader><div className="flex items-center justify-between gap-4"><CardTitle className="text-base">Import preview</CardTitle><div className="flex flex-wrap justify-end gap-2"><Badge variant="outline">{preview.games.length} games detected</Badge><Badge variant="outline">{preview.drawsDetected} draws detected</Badge><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{preview.valid.length} valid</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300">{preview.invalid.length} invalid</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300">{preview.duplicates.length} duplicates</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300">{preview.sequenceWarnings.length} warnings</Badge></div></div></CardHeader><CardContent className="space-y-5">
+    {preview && <Card><CardHeader><div className="flex items-center justify-between gap-4"><CardTitle className="text-base">Import preview</CardTitle><div className="flex flex-wrap justify-end gap-2"><Badge variant="outline">{preview.games.length} games detected</Badge><Badge variant="outline">{preview.drawsDetected} draws detected</Badge><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{preview.valid.length} valid</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300">{invalidCount} invalid</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300">{preview.duplicates.length} duplicates</Badge><Badge variant="outline" className="border-amber-500/30 text-amber-300">{preview.sequenceWarnings.length} warnings</Badge></div></div></CardHeader><CardContent className="space-y-5">
       {preview.sequenceWarnings.length > 0 && <div className="border border-amber-500/25 bg-amber-500/5 p-3 text-sm text-amber-200"><div className="flex items-center gap-2 font-medium"><FileWarning className="size-4" /> Draw sequence warnings</div><div className="mt-2 space-y-1 text-xs text-amber-100/80">{preview.sequenceWarnings.map((warning) => <div key={`${warning.gameName}-${warning.message}`}>{warning.gameName}: {warning.message}</div>)}</div></div>}
       {preview.invalid.length > 0 && <div className="border border-amber-500/25 bg-amber-500/5 p-3 text-sm"><div className="flex items-center gap-2 font-medium text-amber-200"><X className="size-4" /> Invalid records will be excluded</div><div className="mt-2 max-h-44 space-y-1 overflow-y-auto text-xs text-muted-foreground">{preview.invalid.slice(0, 30).map((item) => <div key={`${item.sourceLine}-${item.reason}`}><span className="text-amber-300">Line {item.sourceLine}</span> · {item.reason}{item.gameName ? ` · ${item.gameName}` : ""}</div>)}</div></div>}
-      <div className="space-y-2">{preview.games.map((game) => <div key={game.normalizedName} className="border border-border/80"><button className="flex w-full items-center justify-between gap-3 p-3 text-left" onClick={() => setExpandedGames((items) => items.includes(game.normalizedName) ? items.filter((item) => item !== game.normalizedName) : [...items, game.normalizedName])}><span><span className="font-medium">{game.name}</span><span className="ml-3 text-xs text-muted-foreground">{game.valid.length} valid · {game.invalid.length} invalid · {game.duplicates.length} duplicates</span></span>{expandedGames.includes(game.normalizedName) ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}</button>{expandedGames.includes(game.normalizedName) && game.valid.length > 0 && <div className="space-y-2 border-t border-border/70 p-3">{game.valid.slice(0, 100).map((draw) => <div key={draw.id} className="grid gap-2 text-xs sm:grid-cols-[80px_110px_1fr] sm:items-center"><span className="font-mono text-primary">{draw.drawNumber.toString().padStart(4, "0")}</span><span className="text-muted-foreground">{draw.drawDate}</span><span className="font-mono">{formatDrawNumbers(draw.numbers)}</span></div>)}{game.valid.length > 100 && <div className="text-xs text-muted-foreground">Showing the first 100 records.</div>}</div>}</div>)}</div>
+       <div className="space-y-2">{preview.games.map((game) => <div key={game.normalizedName} className="border border-border/80"><button className="flex w-full items-center justify-between gap-3 p-3 text-left" onClick={() => setExpandedGames((items) => items.includes(game.normalizedName) ? items.filter((item) => item !== game.normalizedName) : [...items, game.normalizedName])}><span><span className="font-medium">{game.name}</span><span className="ml-3 text-xs text-muted-foreground">{game.valid.length} valid · {game.invalid.filter((item) => !isDuplicate(item.reason)).length} invalid · {game.duplicates.length} duplicates</span></span>{expandedGames.includes(game.normalizedName) ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}</button>{expandedGames.includes(game.normalizedName) && game.valid.length > 0 && <div className="space-y-2 border-t border-border/70 p-3">{game.valid.slice(0, 100).map((draw) => <div key={draw.id} className="grid gap-2 text-xs sm:grid-cols-[80px_110px_1fr] sm:items-center"><span className="font-mono text-primary">{draw.drawNumber.toString().padStart(4, "0")}</span><span className="text-muted-foreground">{draw.drawDate}</span><span className="font-mono">{formatDrawNumbers(draw.numbers)}</span></div>)}{game.valid.length > 100 && <div className="text-xs text-muted-foreground">Showing the first 100 records.</div>}</div>}</div>)}</div>
       {status.kind === "importing" && <div className="space-y-2"><Progress value={progress} /><div className="text-xs text-muted-foreground">{status.current} / {status.total} valid records</div></div>}
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4"><Button variant="outline" onClick={cancelPreview}><X className="size-4" /> Cancel</Button><Button onClick={() => void confirmImport()} disabled={status.kind === "importing" || preview.valid.length === 0}><Database className="size-4" /> Import {preview.valid.length} valid records</Button></div>
     </CardContent></Card>}

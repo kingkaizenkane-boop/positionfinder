@@ -103,7 +103,7 @@ const parseNumberBlock = (value: string): number[] => {
   const tokens = trimmed.split(/\s+/).filter(Boolean);
   if (tokens.length === 5 && tokens.every((token) => /^\d{1,2}$/.test(token))) return tokens.map(Number);
   const compact = trimmed.replace(/\D/g, "");
-  if (compact.length === 10) return compact.match(/\d{2}/g)?.map(Number) ?? [];
+  if (compact.length >= 2 && compact.length <= 10 && compact.length % 2 === 0) return compact.match(/\d{2}/g)?.map(Number) ?? [];
   return toNumbers(trimmed);
 };
 
@@ -123,8 +123,9 @@ const isGameHeader = (line: string) => {
 };
 
 const invalidNumbersReason = (numbers: number[]) => {
+  if (numbers.length !== 10) return `Expected 10 numbers but found ${numbers.length}.`;
   const invalidNumber = numbers.find((number) => number < 1 || number > 90);
-  return invalidNumber === undefined ? `Expected 10 numbers but found ${numbers.length}.` : `Number ${invalidNumber} is outside the valid range 01–90.`;
+  return invalidNumber === undefined ? "Expected 10 numbers but found 0." : `Number ${invalidNumber} is outside the valid range 01–90.`;
 };
 
 const getSequenceWarnings = (gameName: string, records: ParsedRecord[]): SequenceWarning[] => {
