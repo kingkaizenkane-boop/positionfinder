@@ -122,7 +122,7 @@ function AnalyzerApp() {
     const { data: existingGames, error: existingGamesError } = await supabase.from("games").select("id, game_name, provider");
     let game = (existingGames ?? []).find((item) => normalizeGameName(item.game_name) === normalizedGameName && normalizeGameName(item.provider) === normalizedProvider);
     if (!game && !existingGamesError) {
-      const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: gameName, provider }).select("id").single();
+      const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: gameName, provider }).select("id, game_name, provider").single();
       if (createdGame) game = createdGame;
       if (gameError && !game) {
         const { data: concurrentGames, error: concurrentLookupError } = await supabase.from("games").select("id, game_name, provider");
