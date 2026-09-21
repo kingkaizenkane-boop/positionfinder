@@ -165,6 +165,51 @@ export type Database = {
           },
         ]
       }
+      import_batches: {
+        Row: {
+          created_at: string
+          draws_detected: number
+          draws_imported: number
+          draws_rejected: number
+          duplicates_skipped: number
+          games_detected: number
+          id: string
+          provider: string
+          raw_text: string
+          source_name: string | null
+          source_year: number | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          draws_detected?: number
+          draws_imported?: number
+          draws_rejected?: number
+          duplicates_skipped?: number
+          games_detected?: number
+          id?: string
+          provider: string
+          raw_text: string
+          source_name?: string | null
+          source_year?: number | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          draws_detected?: number
+          draws_imported?: number
+          draws_rejected?: number
+          duplicates_skipped?: number
+          games_detected?: number
+          id?: string
+          provider?: string
+          raw_text?: string
+          source_name?: string | null
+          source_year?: number | null
+          status?: string
+        }
+        Relationships: []
+      }
       transitions: {
         Row: {
           analysis_session_id: string
