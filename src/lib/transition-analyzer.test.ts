@@ -76,7 +76,7 @@ Golden Chance Bravo
   });
 
   it("preserves leading-zero values numerically and formats them with two digits", () => {
-    const record = firstValidDraw("0943: 05/01/2024: 01050809 10 11 | 12 13 14 15 16");
+    const record = firstValidDraw("0943: 05/01/2024: 01050809 10 | 12 13 14 15 16");
 
     expect(record.numbers.slice(0, 4)).toEqual([1, 5, 8, 9]);
     expect([1, 5, 8, 9].map(formatNumber)).toEqual(["01", "05", "08", "09"]);
