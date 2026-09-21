@@ -150,7 +150,7 @@ export function parseHistoricalGames(text: string): ParsedImport {
   const invalid: InvalidRecord[] = [];
   const duplicates: ParsedRecord[] = [];
   const seen = new Set<string>();
-  const lines = text.split(/\r?\n/);
+  const lines = text.split(/\r?\n/).flatMap((line) => line.split(/\s+\/\s+/));
   const plainLines: NumberLine[] = lines.flatMap((line, index) => {
     if (/[a-z]/i.test(line) || /[:/\-]/.test(line)) return [];
     const numbers = parseDrawNumbers(line);

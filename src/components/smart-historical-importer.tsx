@@ -18,7 +18,7 @@ type SmartHistoricalImporterProps = {
 };
 
 type ImportStatus = { kind: "idle" | "importing" | "success" | "error"; message: string; current: number; total: number };
-type ImportHistoryRow = { id: string; provider: string; games_detected: number; draws_imported: number; draws_rejected: number; duplicates_skipped: number; created_at: string; status: string };
+type ImportHistoryRow = { id: string; provider: string; source_name: string | null; source_year: number | null; raw_text: string; games_detected: number; draws_imported: number; draws_rejected: number; duplicates_skipped: number; created_at: string; status: string };
 
 const CHUNK_SIZE = 250;
 
@@ -40,12 +40,13 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
   const [providers, setProviders] = useState<string[]>([]);
   const [status, setStatus] = useState<ImportStatus>({ kind: "idle", message: "", current: 0, total: 0 });
   const [importHistory, setImportHistory] = useState<ImportHistoryRow[]>([]);
+  const [expandedImport, setExpandedImport] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     void Promise.all([
       supabase.from("games").select("provider"),
-      supabase.from("import_batches").select("id, provider, games_detected, draws_imported, draws_rejected, duplicates_skipped, created_at, status").order("created_at", { ascending: false }).limit(8),
+      supabase.from("import_batches").select("id, provider, source_name, source_year, raw_text, games_detected, draws_imported, draws_rejected, duplicates_skipped, created_at, status").order("created_at", { ascending: false }).limit(8),
     ]).then(([gameResult, historyResult]) => {
       if (!mounted) return;
       const names = [...new Set((gameResult.data ?? []).map((row) => row.provider.trim()).filter(Boolean))].sort();
@@ -108,7 +109,9 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
     let imported = 0;
     try {
       for (const game of preview.games.filter((item) => item.valid.length > 0)) {
-        const existingGame = (await supabase.from("games").select("id, game_name").ilike("provider", selectedProvider).ilike("game_name", game.name).limit(1).maybeSingle()).data;
+        const existingGames = (await supabase.from("games").select("id, game_name, provider").ilike("provider", selectedProvider)).data ?? [];
+        const normalizedName = game.normalizedName;
+        const existingGame = existingGames.find((item) => item.game_name.trim().replace(/\s+/g, " ").toLocaleLowerCase() === normalizedName);
         let gameId = existingGame?.id;
         if (!gameId) {
           const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: game.name, provider: selectedProvider }).select("id").single();
@@ -140,7 +143,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       if (batchUpdateError) throw new Error("batch");
       onHistoryImported(canonicalText(preview.games));
       onProviderChange(selectedProvider);
-      setImportHistory((rows) => [{ id: batch.id, provider: selectedProvider, games_detected: preview.games.length, draws_imported: imported, draws_rejected: invalidCount, duplicates_skipped: preview.duplicates.length, created_at: new Date().toISOString(), status: "completed" }, ...rows].slice(0, 8));
+      setImportHistory((rows) => [{ id: batch.id, provider: selectedProvider, source_name: sourceName.trim() || null, source_year: sourceYear ? Number(sourceYear) : null, raw_text: rawText, games_detected: preview.games.length, draws_imported: imported, draws_rejected: invalidCount, duplicates_skipped: preview.duplicates.length, created_at: new Date().toISOString(), status: "completed" }, ...rows].slice(0, 8));
       setStatus({ kind: "success", message: `Import complete. ${imported} valid records are ready for analysis.`, current: imported, total: validDraws.length });
       setParsed(null);
     } catch {
@@ -171,6 +174,6 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4"><Button variant="outline" onClick={cancelPreview}><X className="size-4" /> Cancel</Button><Button onClick={() => void confirmImport()} disabled={status.kind === "importing" || preview.valid.length === 0}><Database className="size-4" /> Import {preview.valid.length} valid records</Button></div>
     </CardContent></Card>}
 
-    {importHistory.length > 0 && <Card><CardHeader><CardTitle className="text-base">Import history</CardTitle></CardHeader><CardContent className="space-y-2">{importHistory.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 py-3 last:border-0"><div><div className="font-medium">{item.provider}</div><div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</div></div><div className="flex flex-wrap gap-2 text-xs"><Badge variant="outline">{item.games_detected} games</Badge><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{item.draws_imported} imported</Badge><Badge variant="outline">{item.duplicates_skipped} duplicates skipped</Badge><Badge variant="outline">{item.status}</Badge></div></div>)}</CardContent></Card>}
+     {importHistory.length > 0 && <Card><CardHeader><CardTitle className="text-base">Import history</CardTitle></CardHeader><CardContent className="space-y-2">{importHistory.map((item) => <div key={item.id} className="border-b border-border/70 py-3 last:border-0"><div className="flex flex-wrap items-center justify-between gap-3"><button className="text-left" onClick={() => setExpandedImport((current) => current === item.id ? null : item.id)}><div className="font-medium">{item.provider}</div><div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}{item.source_name ? ` · ${item.source_name}` : ""}{item.source_year ? ` · ${item.source_year}` : ""}</div></button><div className="flex flex-wrap gap-2 text-xs"><Badge variant="outline">{item.games_detected} games</Badge><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{item.draws_imported} imported</Badge><Badge variant="outline">{item.duplicates_skipped} duplicates skipped</Badge><Badge variant="outline">{item.status}</Badge></div></div>{expandedImport === item.id && <div className="mt-3 border border-border/70 bg-muted/20 p-3"><div className="mb-2 text-xs font-medium text-muted-foreground">Retained source text</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-muted-foreground">{item.raw_text}</pre></div>}</div>)}</CardContent></Card>}
   </div>;
 }
