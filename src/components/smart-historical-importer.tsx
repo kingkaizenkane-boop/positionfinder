@@ -111,7 +111,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
     let skippedDuplicates = preview.duplicates.length;
     try {
       for (const game of preview.games.filter((item) => item.valid.length > 0)) {
-        const existingGames = (await supabase.from("games").select("id, game_name, provider").ilike("provider", selectedProvider)).data ?? [];
+        const existingGames = (await supabase.from("games").select("id, game_name, provider")).data ?? [];
         const normalizedName = game.normalizedName;
         const normalizedProvider = normalizeGameName(selectedProvider);
         const existingGame = existingGames.find((item) => normalizeGameName(item.provider) === normalizedProvider && normalizeGameName(item.game_name) === normalizedName);
@@ -119,7 +119,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
         if (!gameId) {
           const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: game.name, provider: selectedProvider }).select("id").single();
           if (gameError || !createdGame) {
-            const { data: concurrentGames, error: concurrentLookupError } = await supabase.from("games").select("id, game_name, provider").ilike("provider", selectedProvider);
+            const { data: concurrentGames, error: concurrentLookupError } = await supabase.from("games").select("id, game_name, provider");
             const concurrentGame = (concurrentGames ?? []).find((item) => normalizeGameName(item.provider) === normalizedProvider && normalizeGameName(item.game_name) === normalizedName);
             if (concurrentLookupError || !concurrentGame) throw new Error("game");
             gameId = concurrentGame.id;
