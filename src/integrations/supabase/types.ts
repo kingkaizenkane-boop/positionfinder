@@ -33,6 +33,7 @@ export type Database = {
           minimum_occurrences: number
           played_date: string
           provider: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -52,6 +53,7 @@ export type Database = {
           minimum_occurrences?: number
           played_date: string
           provider: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -71,6 +73,7 @@ export type Database = {
           minimum_occurrences?: number
           played_date?: string
           provider?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -88,18 +91,21 @@ export type Database = {
           game_name: string
           id: string
           provider: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
           game_name: string
           id?: string
           provider: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
           game_name?: string
           id?: string
           provider?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -120,6 +126,7 @@ export type Database = {
           p7: number
           p8: number
           p9: number
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -137,6 +144,7 @@ export type Database = {
           p7: number
           p8: number
           p9: number
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -154,6 +162,7 @@ export type Database = {
           p7?: number
           p8?: number
           p9?: number
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -179,6 +188,7 @@ export type Database = {
           source_name: string | null
           source_year: number | null
           status: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -193,6 +203,7 @@ export type Database = {
           source_name?: string | null
           source_year?: number | null
           status?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -207,6 +218,7 @@ export type Database = {
           source_name?: string | null
           source_year?: number | null
           status?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -221,6 +233,7 @@ export type Database = {
           source_position: number
           target_number: number
           target_position: number
+          user_id: string | null
         }
         Insert: {
           analysis_session_id: string
@@ -232,6 +245,7 @@ export type Database = {
           source_position: number
           target_number: number
           target_position: number
+          user_id?: string | null
         }
         Update: {
           analysis_session_id?: string
@@ -243,6 +257,7 @@ export type Database = {
           source_position?: number
           target_number?: number
           target_position?: number
+          user_id?: string | null
         }
         Relationships: [
           {

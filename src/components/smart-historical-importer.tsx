@@ -90,8 +90,16 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       return;
     }
 
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) {
+      setStatus({ kind: "error", message: "Sign in before importing historical records.", current: 0, total: validDraws.length });
+      return;
+    }
+    const userId = authData.user.id;
+
     setStatus({ kind: "importing", message: "Starting import…", current: 0, total: validDraws.length });
     const { data: batch, error: batchError } = await supabase.from("import_batches").insert({
+      user_id: userId,
       provider: selectedProvider,
       source_name: sourceName.trim() || null,
       source_year: sourceYear ? Number(sourceYear) : null,
@@ -117,7 +125,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
         const existingGame = existingGames.find((item) => normalizeGameName(item.provider) === normalizedProvider && normalizeGameName(item.game_name) === normalizedName);
         let gameId = existingGame?.id;
         if (!gameId) {
-          const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: game.name, provider: selectedProvider }).select("id").single();
+          const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: game.name, provider: selectedProvider, user_id: userId }).select("id").single();
           if (gameError || !createdGame) {
             const { data: concurrentGames, error: concurrentLookupError } = await supabase.from("games").select("id, game_name, provider");
             const concurrentGame = (concurrentGames ?? []).find((item) => normalizeGameName(item.provider) === normalizedProvider && normalizeGameName(item.game_name) === normalizedName);
@@ -135,6 +143,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
         skippedDuplicates += game.valid.length - newDraws.length;
         const rows = newDraws.map((draw) => ({
           game_id: gameId,
+          user_id: userId,
           draw_number: draw.drawNumber,
           draw_date: draw.drawDate,
           p1: draw.numbers[0], p2: draw.numbers[1], p3: draw.numbers[2], p4: draw.numbers[3], p5: draw.numbers[4],
