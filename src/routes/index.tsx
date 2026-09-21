@@ -95,9 +95,18 @@ function AnalyzerApp() {
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => {
     setPlayedDate(new Date().toISOString().slice(0, 10));
-    void supabase.auth.getUser().then(({ data }) => setSignedInEmail(data.user?.email ?? null));
+    void supabase.auth.getUser().then(({ data }) => {
+      setSignedInEmail(data.user?.email ?? null);
+      setAuthChecked(true);
+    });
+    const { data: authSubscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedInEmail(session?.user.email ?? null);
+      setAuthChecked(true);
+    });
+    return () => authSubscription.subscription.unsubscribe();
   }, []);
   const parsed = useMemo(() => parseHistoricalGames(historyText), [historyText]);
   const visibleInvalid = parsed.invalid.filter((item) => !invalidDismissed.includes(item.sourceLine));
@@ -196,6 +205,14 @@ function AnalyzerApp() {
     setInvalidDismissed((lines) => [...lines, line]);
     setHistoryText((text) => text.split(/\r?\n/).filter((_, index) => index + 1 !== line).join("\n"));
   };
+
+  if (!authChecked) {
+    return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Checking your account…</div>;
+  }
+
+  if (!signedInEmail) {
+    return <AuthPanel />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
