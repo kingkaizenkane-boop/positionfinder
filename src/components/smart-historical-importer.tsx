@@ -108,6 +108,7 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
     }
 
     let imported = 0;
+    let skippedDuplicates = preview.duplicates.length;
     try {
       for (const game of preview.games.filter((item) => item.valid.length > 0)) {
         const existingGames = (await supabase.from("games").select("id, game_name, provider").ilike("provider", selectedProvider)).data ?? [];
@@ -123,7 +124,9 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
         const { data: existingDraws, error: existingError } = await supabase.from("historical_draws").select("draw_number, draw_date, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10").eq("game_id", gameId);
         if (existingError) throw new Error("history");
         const existingKeys = new Set((existingDraws ?? []).map((draw) => drawKey({ drawNumber: draw.draw_number, drawDate: draw.draw_date, numbers: [draw.p1, draw.p2, draw.p3, draw.p4, draw.p5, draw.p6, draw.p7, draw.p8, draw.p9, draw.p10] })));
-        const rows = game.valid.filter((draw) => !existingKeys.has(drawKey(draw))).map((draw) => ({
+        const newDraws = game.valid.filter((draw) => !existingKeys.has(drawKey(draw)));
+        skippedDuplicates += game.valid.length - newDraws.length;
+        const rows = newDraws.map((draw) => ({
           game_id: gameId,
           draw_number: draw.drawNumber,
           draw_date: draw.drawDate,
@@ -140,15 +143,15 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
         }
       }
 
-      const { error: batchUpdateError } = await supabase.from("import_batches").update({ draws_imported: imported, status: "completed" }).eq("id", batch.id);
+      const { error: batchUpdateError } = await supabase.from("import_batches").update({ draws_imported: imported, duplicates_skipped: skippedDuplicates, status: "completed" }).eq("id", batch.id);
       if (batchUpdateError) throw new Error("batch");
       onHistoryImported(canonicalText(preview.games));
       onProviderChange(selectedProvider);
-      setImportHistory((rows) => [{ id: batch.id, provider: selectedProvider, source_name: sourceName.trim() || null, source_year: sourceYear ? Number(sourceYear) : null, raw_text: rawText, games_detected: preview.games.length, draws_imported: imported, draws_rejected: invalidCount, duplicates_skipped: preview.duplicates.length, created_at: new Date().toISOString(), status: "completed" }, ...rows].slice(0, 8));
+      setImportHistory((rows) => [{ id: batch.id, provider: selectedProvider, source_name: sourceName.trim() || null, source_year: sourceYear ? Number(sourceYear) : null, raw_text: rawText, games_detected: preview.games.length, draws_imported: imported, draws_rejected: invalidCount, duplicates_skipped: skippedDuplicates, created_at: new Date().toISOString(), status: "completed" }, ...rows].slice(0, 8));
       setStatus({ kind: "success", message: `Import complete. ${imported} valid records are ready for analysis.`, current: imported, total: validDraws.length });
       setParsed(null);
     } catch {
-      await supabase.from("import_batches").update({ draws_imported: imported, status: "failed" }).eq("id", batch.id);
+      await supabase.from("import_batches").update({ draws_imported: imported, duplicates_skipped: skippedDuplicates, status: "failed" }).eq("id", batch.id);
       setStatus({ kind: "error", message: "The import stopped before completion. Existing records were not removed.", current: imported, total: validDraws.length });
     }
   };
@@ -175,6 +178,6 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4"><Button variant="outline" onClick={cancelPreview}><X className="size-4" /> Cancel</Button><Button onClick={() => void confirmImport()} disabled={status.kind === "importing" || preview.valid.length === 0}><Database className="size-4" /> Import {preview.valid.length} valid records</Button></div>
     </CardContent></Card>}
 
-     {importHistory.length > 0 && <Card><CardHeader><CardTitle className="text-base">Import history</CardTitle></CardHeader><CardContent className="space-y-2">{importHistory.map((item) => <div key={item.id} className="border-b border-border/70 py-3 last:border-0"><div className="flex flex-wrap items-center justify-between gap-3"><button className="text-left" onClick={() => setExpandedImport((current) => current === item.id ? null : item.id)}><div className="font-medium">{item.provider}</div><div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}{item.source_name ? ` · ${item.source_name}` : ""}{item.source_year ? ` · ${item.source_year}` : ""}</div></button><div className="flex flex-wrap gap-2 text-xs"><Badge variant="outline">{item.games_detected} games</Badge><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{item.draws_imported} imported</Badge><Badge variant="outline">{item.duplicates_skipped} duplicates skipped</Badge><Badge variant="outline">{item.status}</Badge></div></div>{expandedImport === item.id && <div className="mt-3 border border-border/70 bg-muted/20 p-3"><div className="mb-2 text-xs font-medium text-muted-foreground">Retained source text</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-muted-foreground">{item.raw_text}</pre></div>}</div>)}</CardContent></Card>}
+     {importHistory.length > 0 && <Card><CardHeader><CardTitle className="text-base">Import history</CardTitle></CardHeader><CardContent className="space-y-2">{importHistory.map((item) => <div key={item.id} className="border-b border-border/70 py-3 last:border-0"><div className="flex flex-wrap items-center justify-between gap-3"><Button variant="ghost" className="h-auto justify-start p-0 text-left" onClick={() => setExpandedImport((current) => current === item.id ? null : item.id)}><span><span className="block font-medium">{item.provider}</span><span className="block text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}{item.source_name ? ` · ${item.source_name}` : ""}{item.source_year ? ` · ${item.source_year}` : ""}</span></span></Button><div className="flex flex-wrap gap-2 text-xs"><Badge variant="outline">{item.games_detected} games</Badge><Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{item.draws_imported} imported</Badge><Badge variant="outline">{item.duplicates_skipped} duplicates skipped</Badge><Badge variant="outline">{item.status}</Badge></div></div>{expandedImport === item.id && <div className="mt-3 border border-border/70 bg-muted/20 p-3"><div className="mb-2 text-xs font-medium text-muted-foreground">Retained source text</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-muted-foreground">{item.raw_text}</pre></div>}</div>)}</CardContent></Card>}
   </div>;
 }
