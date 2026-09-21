@@ -231,7 +231,7 @@ export function parseHistoricalGames(text: string): ParsedImport {
       game.invalid.push(item);
       return;
     }
-    const record: ParsedRecord = { id: `import-${sourceLine}-${drawNumber}`, drawNumber, drawDate, numbers: numbers as Numbers, sourceLine, gameName: game.name };
+    const record: ParsedRecord = { id: `import-${sourceLine}-${drawNumber}`, drawNumber, drawDate: drawDate as string, numbers: numbers as Numbers, sourceLine, gameName: game.name };
     datedRecords.push(record);
   });
 
