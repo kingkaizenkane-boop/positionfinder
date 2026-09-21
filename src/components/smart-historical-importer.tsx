@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDrawNumbers, parseHistoricalGames, type Numbers, type ParsedGame, type ParsedImport } from "@/lib/transition-analyzer";
+import { formatDrawNumbers, normalizeGameName, parseHistoricalGames, type Numbers, type ParsedGame, type ParsedImport } from "@/lib/transition-analyzer";
 import { ChevronDown, ChevronRight, Database, FileWarning, Upload, X } from "lucide-react";
 
 type SmartHistoricalImporterProps = {
@@ -111,14 +111,21 @@ export function SmartHistoricalImporter({ initialProvider, historyText, onHistor
     let skippedDuplicates = preview.duplicates.length;
     try {
       for (const game of preview.games.filter((item) => item.valid.length > 0)) {
-        const existingGames = (await supabase.from("games").select("id, game_name, provider").ilike("provider", selectedProvider)).data ?? [];
+        const existingGames = (await supabase.from("games").select("id, game_name, provider")).data ?? [];
         const normalizedName = game.normalizedName;
-        const existingGame = existingGames.find((item) => item.game_name.trim().replace(/\s+/g, " ").toLocaleLowerCase() === normalizedName);
+        const normalizedProvider = normalizeGameName(selectedProvider);
+        const existingGame = existingGames.find((item) => normalizeGameName(item.provider) === normalizedProvider && normalizeGameName(item.game_name) === normalizedName);
         let gameId = existingGame?.id;
         if (!gameId) {
           const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: game.name, provider: selectedProvider }).select("id").single();
-          if (gameError || !createdGame) throw new Error("game");
-          gameId = createdGame.id;
+          if (gameError || !createdGame) {
+            const { data: concurrentGames, error: concurrentLookupError } = await supabase.from("games").select("id, game_name, provider");
+            const concurrentGame = (concurrentGames ?? []).find((item) => normalizeGameName(item.provider) === normalizedProvider && normalizeGameName(item.game_name) === normalizedName);
+            if (concurrentLookupError || !concurrentGame) throw new Error("game");
+            gameId = concurrentGame.id;
+          } else {
+            gameId = createdGame.id;
+          }
         }
 
         const { data: existingDraws, error: existingError } = await supabase.from("historical_draws").select("draw_number, draw_date, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10").eq("game_id", gameId);

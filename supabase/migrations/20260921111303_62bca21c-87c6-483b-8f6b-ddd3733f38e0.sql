@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX games_provider_game_name_normalized_idx ON public.games (lower(regexp_replace(btrim(provider), '\s+', ' ', 'g')), lower(regexp_replace(btrim(game_name), '\s+', ' ', 'g')));
