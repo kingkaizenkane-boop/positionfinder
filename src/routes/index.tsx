@@ -290,6 +290,52 @@ function CurrentSummary({ gameName, provider, playedDate, currentNumbers, analys
 function Metric({ label, value }: { label: string; value: number }) { return <div><div className="text-2xl font-semibold tracking-tight">{value}</div><div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div></div>; }
 function TransitionCard({ transition, expanded, onToggle }: { transition: TransitionGroup; expanded: boolean; onToggle: () => void }) { return <Card className="border-border/80"><button className="flex w-full items-center justify-between gap-4 p-4 text-left" onClick={onToggle}><div className="flex items-center gap-3"><div className="font-mono text-base font-semibold text-primary">{positionLabel(transition.sourcePosition, transition.sourceNumber)}</div><ArrowRight className="size-4 text-muted-foreground" /><div className="font-mono text-base font-semibold text-foreground">{positionLabel(transition.targetPosition, transition.targetNumber)}</div></div><div className="flex items-center gap-3"><Badge className="bg-primary/15 text-primary hover:bg-primary/15">×{transition.occurrenceCount}</Badge>{expanded ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}</div></button>{expanded && <CardContent className="border-t border-border/70 bg-muted/20 px-4 py-4"><EvidenceList transition={transition} /></CardContent>}</Card>; }
 function TransitionLine({ transition }: { transition: TransitionGroup }) { return <div className="flex items-center justify-between border-b border-border/60 py-2 last:border-0"><span className="font-mono text-sm">{positionLabel(transition.sourcePosition, transition.sourceNumber)} <span className="text-muted-foreground">→</span> {positionLabel(transition.targetPosition, transition.targetNumber)}</span><Badge variant="outline" className="text-primary">×{transition.occurrenceCount}</Badge></div>; }
+function TargetPairCard({ pair, expanded, onToggle }: { pair: RepeatedTargetPair; expanded: boolean; onToggle: () => void }) {
+  const sourceLabels = pair.relationships.map((relationship) => positionLabel(relationship.sourcePosition, relationship.sourceNumber));
+  const targetLabels = pair.relationships.map((relationship) => positionLabel(relationship.targetPosition, relationship.targetNumber));
+
+  return <Card className="border-primary/25">
+    <button className="flex w-full items-center justify-between gap-4 p-4 text-left" onClick={onToggle} aria-expanded={expanded}>
+      <div className="min-w-0 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">Line 2 source</span>
+          <span className="font-mono font-semibold text-amber-300">{sourceLabels.join(" + ")}</span>
+          <ArrowRight className="size-4 text-muted-foreground" />
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">Line 3 target</span>
+          <span className="font-mono font-semibold text-primary">{targetLabels.join(" + ")}</span>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <span>Matching source numbers: {pair.sourceCount}</span>
+          <span>·</span>
+          <span>Repeated target pair: {targetLabels.join(" + ")}</span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <Badge className="bg-primary/15 text-primary hover:bg-primary/15">×{pair.occurrenceCount}</Badge>
+        {expanded ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+      </div>
+    </button>
+    {expanded && <CardContent className="border-t border-border/70 bg-muted/20 px-4 py-4">
+      <div className="mb-4 grid gap-3 text-xs sm:grid-cols-3">
+        <div><div className="text-muted-foreground">Source position(s) and number(s)</div><div className="mt-1 font-mono text-amber-300">{sourceLabels.join(" · ")}</div></div>
+        <div><div className="text-muted-foreground">Target position(s) and number(s)</div><div className="mt-1 font-mono text-primary">{targetLabels.join(" · ")}</div></div>
+        <div><div className="text-muted-foreground">Matching source number(s)</div><div className="mt-1 font-semibold">{pair.sourceCount === 1 ? "1 source number" : "2 source numbers"}</div></div>
+      </div>
+      <div className="space-y-3">
+        {pair.evidence.map((evidence, index) => <div key={`${evidence.historicalDraw.id}-${evidence.nextDraw.id}-${index}`} className="border border-border/70 bg-background/40 p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-semibold uppercase tracking-wider text-primary">Occurrence #{index + 1}</span>
+            <span className="text-muted-foreground">Source draw {evidence.historicalDraw.drawNumber} → next draw {evidence.nextDraw.drawNumber} · {evidence.historicalDraw.drawDate}</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div><div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Source paths</div><div className="font-mono text-sm text-amber-300">{evidence.relationships.map((relationship) => positionLabel(relationship.sourcePosition, relationship.sourceNumber)).join(" · ")}</div></div>
+            <div><div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Target pair</div><div className="font-mono text-sm text-primary">{evidence.relationships.map((relationship) => positionLabel(relationship.targetPosition, relationship.targetNumber)).join(" · ")}</div></div>
+          </div>
+        </div>)}
+      </div>
+    </CardContent>}
+  </Card>;
+}
 function SourceCard({ source, active, onClick }: { source: AnalysisResult["sources"][number]; active: boolean; onClick: () => void }) { return <button onClick={onClick} className={cn("border bg-card p-4 text-left transition-colors hover:border-primary/50", active ? "border-primary/60 bg-primary/5" : "border-border/80")}><div className="flex items-center justify-between"><span className="font-mono font-semibold">{positionLabel(source.position, source.number)}</span><ChevronRight className="size-4 text-muted-foreground" /></div><div className="mt-3 text-xs text-muted-foreground">Historical occurrences</div><div className="mt-1 text-2xl font-semibold">{source.historicalOccurrences}</div><div className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">{source.occurrencesWithNextDraw} with a valid next draw</div><div className="mt-3 space-y-1">{source.transitions.slice(0, 3).map((transition) => <div key={transition.key} className="flex items-center justify-between font-mono text-xs"><span>P{transition.targetPosition}:{formatNumber(transition.targetNumber)}</span><span className="text-primary">×{transition.occurrenceCount}</span></div>)}{source.transitions.length === 0 && <span className="text-xs text-muted-foreground">No repeated transitions</span>}</div></button>; }
 function ConvergenceCard({ group }: { group: AnalysisResult["convergence"][number] }) { return <Card className="border-primary/25 bg-primary/[0.04]"><CardContent className="p-5"><div className="flex items-center justify-between"><div><div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Target convergence</div><div className="mt-1 font-mono text-xl font-semibold">P{group.targetPosition}:{formatNumber(group.targetNumber)}</div></div><Badge variant="outline" className="border-primary/30 text-primary">{group.sources.length} source paths</Badge></div><div className="my-4 flex items-center gap-3 text-primary"><div className="space-y-1">{group.sources.map((source) => <div key={source.key} className="flex items-center gap-2 font-mono text-xs"><span className="inline-block h-px w-6 bg-primary/60" />{positionLabel(source.sourcePosition, source.sourceNumber)}</div>)}</div><div className="flex-1 border-t border-dashed border-primary/50" /><ArrowRight className="size-4" /><div className="font-mono text-xs font-semibold">P{group.targetPosition}:{formatNumber(group.targetNumber)}</div></div><div className="space-y-2 border-t border-primary/15 pt-3">{group.sources.map((source) => <div key={source.key} className="flex justify-between text-xs"><span className="font-mono">{positionLabel(source.sourcePosition, source.sourceNumber)} → P{source.targetPosition}:{formatNumber(source.targetNumber)}</span><span className="text-primary">{source.occurrenceCount} occurrences</span></div>)}</div><p className="mt-4 text-[11px] text-muted-foreground">Observed positional convergence — not a guaranteed prediction.</p></CardContent></Card>; }
 function Matrix({ result, activeCell, onSelect }: { result: AnalysisResult; activeCell: { source: number; target: number } | null; onSelect: (value: { source: number; target: number }) => void }) { const getCount = (source: number, target: number) => result.matrix.find((cell) => cell.sourcePosition === source && cell.targetPosition === target)?.count ?? 0; return <div className="overflow-x-auto border border-border"><table className="w-full min-w-[760px] border-collapse text-center text-xs"><thead><tr><th className="border-b border-r border-border bg-muted/30 p-3 text-left font-medium text-muted-foreground">Source → Target</th>{POSITIONS.map((position) => <th key={position} className="border-b border-border bg-muted/30 p-3 font-mono font-medium text-muted-foreground">P{position}</th>)}</tr></thead><tbody>{POSITIONS.map((source) => <tr key={source}><th className="border-r border-border bg-muted/20 p-3 text-left font-mono font-medium text-muted-foreground">P{source}</th>{POSITIONS.map((target) => { const count = getCount(source, target); const selected = activeCell?.source === source && activeCell.target === target; return <td key={target} className="border-b border-border/60 p-1"><button onClick={() => onSelect({ source, target })} className={cn("flex h-10 w-full min-w-[48px] items-center justify-center font-mono transition-colors", count > 0 ? "bg-primary/10 text-primary hover:bg-primary/20" : "text-muted-foreground/50 hover:bg-accent", selected && "ring-1 ring-inset ring-primary bg-primary/25")}>{count || "·"}</button></td>; })}</tr>)}</tbody></table></div>; }
