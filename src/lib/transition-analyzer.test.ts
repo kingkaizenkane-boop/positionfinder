@@ -231,7 +231,6 @@ Gap Game
   it("finds repeated target pairs only when the source paths stay identical", () => {
     const sourceNumbers = [64, 11, 12, 13, 14, 15, 16, 17, 18, 19] as Numbers;
     const targetNumbers = [20, 28, 30, 40, 50, 60, 70, 80, 89, 90] as Numbers;
-    const changedTargetNumbers = [21, 28, 30, 40, 50, 60, 70, 80, 89, 90] as Numbers;
     const result = analyzeTransitions(
       sourceNumbers,
       [
@@ -239,8 +238,8 @@ Gap Game
         draw("target-1", 2, "2024-01-02", targetNumbers),
         draw("source-2", 3, "2024-01-03", sourceNumbers),
         draw("target-2", 4, "2024-01-04", targetNumbers),
-        draw("source-3", 5, "2024-01-05", [65, 71, 72, 73, 74, 75, 76, 77, 78, 79]),
-        draw("target-3", 6, "2024-01-06", [21, 31, 32, 33, 34, 35, 36, 37, 38, 39]),
+        draw("source-3", 5, "2024-01-05", [65, 11, 12, 13, 14, 15, 16, 17, 18, 19]),
+        draw("target-3", 6, "2024-01-06", targetNumbers),
       ],
       1,
     );
@@ -256,7 +255,7 @@ Gap Game
     ]);
     expect(matchingPair?.occurrenceCount).toBe(2);
     expect(matchingPair?.evidence.map((item) => item.historicalDraw.id)).toEqual(["source-1", "source-2"]);
-    expect(pairs.some((pair) => pair.evidence.some((item) => item.historicalDraw.id === "source-3"))).toBe(false);
+    expect(matchingPair?.evidence.some((item) => item.historicalDraw.id === "source-3")).toBe(false);
   });
 
   it("preserves two distinct source paths in repeated target-pair results", () => {
