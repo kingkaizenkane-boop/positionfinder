@@ -239,7 +239,7 @@ Gap Game
         draw("source-2", 3, "2024-01-03", sourceNumbers),
         draw("target-2", 4, "2024-01-04", targetNumbers),
         draw("source-3", 5, "2024-01-05", [65, 11, 12, 13, 14, 15, 16, 17, 18, 19]),
-        draw("target-3", 6, "2024-01-06", targetNumbers),
+        draw("target-3", 6, "2024-01-06", [21, 22, 31, 32, 33, 34, 35, 36, 37, 38]),
       ],
       1,
     );
