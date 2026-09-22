@@ -8,3 +8,4 @@
 - [x] Correct analysis to compare every source position with every target position across consecutive draws
 - [x] Add smart historical importer with game detection, compact-number normalization, validation, duplicate and gap preview
 - [x] Add confirmed batched imports, audit history, provider selection, and reuse of existing games and historical draws
+- [x] Add repeated target-pair analysis with stable one- or two-source positional paths
