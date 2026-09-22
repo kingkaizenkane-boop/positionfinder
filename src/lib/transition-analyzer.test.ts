@@ -239,8 +239,8 @@ Gap Game
         draw("target-1", 2, "2024-01-02", targetNumbers),
         draw("source-2", 3, "2024-01-03", sourceNumbers),
         draw("target-2", 4, "2024-01-04", targetNumbers),
-        draw("source-3", 5, "2024-01-05", [65, 11, 12, 13, 14, 15, 16, 17, 18, 19]),
-        draw("target-3", 6, "2024-01-06", changedTargetNumbers),
+        draw("source-3", 5, "2024-01-05", [65, 71, 72, 73, 74, 75, 76, 77, 78, 79]),
+        draw("target-3", 6, "2024-01-06", [21, 31, 32, 33, 34, 35, 36, 37, 38, 39]),
       ],
       1,
     );
@@ -274,7 +274,7 @@ Gap Game
     );
 
     const pairs = findRepeatedTargetPairs(sourceNumbers, result, 2);
-    const twoSourcePair = pairs.find((pair) => pair.sourceCount === 2 && pair.relationships[0]?.targetNumber === 20 && pair.relationships[1]?.targetNumber === 28);
+    const twoSourcePair = pairs.find((pair) => pair.sourceCount === 2 && pair.relationships.some((relationship) => relationship.sourcePosition === 1 && relationship.sourceNumber === 64 && relationship.targetPosition === 1 && relationship.targetNumber === 20) && pair.relationships.some((relationship) => relationship.sourcePosition === 2 && relationship.sourceNumber === 65 && relationship.targetPosition === 2 && relationship.targetNumber === 28));
 
     expect(twoSourcePair).toBeDefined();
     expect(twoSourcePair?.relationships).toEqual([
