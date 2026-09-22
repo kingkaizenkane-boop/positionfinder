@@ -52,6 +52,27 @@ export type ConvergenceGroup = {
   sources: TransitionGroup[];
 };
 
+export type TargetPairRelationship = {
+  sourcePosition: Position;
+  sourceNumber: number;
+  targetPosition: Position;
+  targetNumber: number;
+};
+
+export type TargetPairEvidence = {
+  historicalDraw: HistoricalDraw;
+  nextDraw: HistoricalDraw;
+  relationships: [TargetPairRelationship, TargetPairRelationship];
+};
+
+export type RepeatedTargetPair = {
+  key: string;
+  sourceCount: 1 | 2;
+  relationships: [TargetPairRelationship, TargetPairRelationship];
+  occurrenceCount: number;
+  evidence: TargetPairEvidence[];
+};
+
 export type AnalysisResult = {
   orderedDraws: HistoricalDraw[];
   sources: SourceSummary[];
@@ -330,4 +351,54 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
 
   const analyzedDraws = [...new Map([...orderedDraws, ...orderedDraws.flatMap((draw) => draw.followingDraw ? [draw.followingDraw] : [])].map((draw) => [draw.id, draw])).values()];
   return { orderedDraws, sources, transitions, allTransitions, convergence, matrix: [...cellMap.values()], duplicateCount, analyzedDrawCount: analyzedDraws.length };
+}
+
+export function findRepeatedTargetPairs(currentNumbers: Numbers, analysis: Pick<AnalysisResult, "allTransitions"> , minimumOccurrences = 2): RepeatedTargetPair[] {
+  const currentSourceKeys = new Set(currentNumbers.map((number, index) => `${index + 1}|${number}`));
+  const transitionsByDrawPair = new Map<string, Array<{ transition: TransitionGroup; evidence: TransitionEvidence }>>();
+
+  for (const transition of analysis.allTransitions) {
+    if (!currentSourceKeys.has(`${transition.sourcePosition}|${transition.sourceNumber}`)) continue;
+    for (const evidence of transition.evidence) {
+      const pairKey = `${evidence.historicalDraw.id}|${evidence.nextDraw.id}`;
+      const pairTransitions = transitionsByDrawPair.get(pairKey) ?? [];
+      pairTransitions.push({ transition, evidence });
+      transitionsByDrawPair.set(pairKey, pairTransitions);
+    }
+  }
+
+  const pairMap = new Map<string, RepeatedTargetPair>();
+  for (const pairTransitions of transitionsByDrawPair.values()) {
+    for (let firstIndex = 0; firstIndex < pairTransitions.length; firstIndex += 1) {
+      const first = pairTransitions[firstIndex];
+      if (!first) continue;
+      for (let secondIndex = firstIndex + 1; secondIndex < pairTransitions.length; secondIndex += 1) {
+        const second = pairTransitions[secondIndex];
+        if (!second || first.transition.targetPosition === second.transition.targetPosition) continue;
+        const relationships = [first.transition, second.transition].sort((a, b) => a.targetPosition - b.targetPosition).map((transition) => ({
+          sourcePosition: transition.sourcePosition,
+          sourceNumber: transition.sourceNumber,
+          targetPosition: transition.targetPosition,
+          targetNumber: transition.targetNumber,
+        })) as [TargetPairRelationship, TargetPairRelationship];
+        const sourceKeys = new Set(relationships.map((relationship) => `${relationship.sourcePosition}|${relationship.sourceNumber}`));
+        const sourceCount = sourceKeys.size;
+        if (sourceCount !== 1 && sourceCount !== 2) continue;
+        const key = relationships.map((relationship) => `${relationship.sourcePosition}|${relationship.sourceNumber}|${relationship.targetPosition}|${relationship.targetNumber}`).join("|");
+        const existing = pairMap.get(key);
+        const evidence: TargetPairEvidence = {
+          historicalDraw: first.evidence.historicalDraw,
+          nextDraw: first.evidence.nextDraw,
+          relationships,
+        };
+        if (existing) existing.evidence.push(evidence);
+        else pairMap.set(key, { key, sourceCount: sourceCount as 1 | 2, relationships, occurrenceCount: 1, evidence: [evidence] });
+      }
+    }
+  }
+
+  return [...pairMap.values()]
+    .map((pair) => ({ ...pair, occurrenceCount: pair.evidence.length }))
+    .filter((pair) => pair.occurrenceCount >= minimumOccurrences)
+    .sort((a, b) => b.occurrenceCount - a.occurrenceCount || a.sourceCount - b.sourceCount || a.key.localeCompare(b.key));
 }

@@ -4,6 +4,7 @@ import {
   analyzeTransitions,
   formatDrawNumbers,
   formatNumber,
+  findRepeatedTargetPairs,
   normalizeGameName,
   parseHistoricalGames,
   type HistoricalDraw,
@@ -225,5 +226,61 @@ Gap Game
     expect(result.orderedDraws.map((item) => item.drawNumber)).toEqual([1, 2, 3]);
     expect(result.allTransitions.some((transition) => transition.evidence.some(({ historicalDraw, nextDraw }) => historicalDraw.id === "first" && nextDraw.id === "second"))).toBe(true);
     expect(result.allTransitions.some((transition) => transition.evidence.some(({ historicalDraw, nextDraw }) => historicalDraw.id === "second" && nextDraw.id === "third"))).toBe(true);
+  });
+
+  it("finds repeated target pairs only when the source paths stay identical", () => {
+    const sourceNumbers = [64, 11, 12, 13, 14, 15, 16, 17, 18, 19] as Numbers;
+    const targetNumbers = [20, 28, 30, 40, 50, 60, 70, 80, 89, 90] as Numbers;
+    const changedTargetNumbers = [21, 28, 30, 40, 50, 60, 70, 80, 89, 90] as Numbers;
+    const result = analyzeTransitions(
+      sourceNumbers,
+      [
+        draw("source-1", 1, "2024-01-01", sourceNumbers),
+        draw("target-1", 2, "2024-01-02", targetNumbers),
+        draw("source-2", 3, "2024-01-03", sourceNumbers),
+        draw("target-2", 4, "2024-01-04", targetNumbers),
+        draw("source-3", 5, "2024-01-05", [65, 11, 12, 13, 14, 15, 16, 17, 18, 19]),
+        draw("target-3", 6, "2024-01-06", changedTargetNumbers),
+      ],
+      1,
+    );
+
+    const pairs = findRepeatedTargetPairs(sourceNumbers, result, 2);
+    const matchingPair = pairs.find((pair) => pair.relationships.every((relationship) => relationship.targetNumber === 28 || relationship.targetNumber === 20));
+
+    expect(matchingPair).toBeDefined();
+    expect(matchingPair?.sourceCount).toBe(1);
+    expect(matchingPair?.relationships).toEqual([
+      { sourcePosition: 1, sourceNumber: 64, targetPosition: 1, targetNumber: 20 },
+      { sourcePosition: 1, sourceNumber: 64, targetPosition: 2, targetNumber: 28 },
+    ]);
+    expect(matchingPair?.occurrenceCount).toBe(2);
+    expect(matchingPair?.evidence.map((item) => item.historicalDraw.id)).toEqual(["source-1", "source-2"]);
+    expect(pairs.some((pair) => pair.evidence.some((item) => item.historicalDraw.id === "source-3"))).toBe(false);
+  });
+
+  it("preserves two distinct source paths in repeated target-pair results", () => {
+    const sourceNumbers = [64, 65, 12, 13, 14, 15, 16, 17, 18, 19] as Numbers;
+    const targetNumbers = [20, 28, 30, 40, 50, 60, 70, 80, 89, 90] as Numbers;
+    const result = analyzeTransitions(
+      sourceNumbers,
+      [
+        draw("source-1", 1, "2024-01-01", sourceNumbers),
+        draw("target-1", 2, "2024-01-02", targetNumbers),
+        draw("source-2", 3, "2024-01-03", sourceNumbers),
+        draw("target-2", 4, "2024-01-04", targetNumbers),
+      ],
+      1,
+    );
+
+    const pairs = findRepeatedTargetPairs(sourceNumbers, result, 2);
+    const twoSourcePair = pairs.find((pair) => pair.sourceCount === 2 && pair.relationships[0]?.targetNumber === 20 && pair.relationships[1]?.targetNumber === 28);
+
+    expect(twoSourcePair).toBeDefined();
+    expect(twoSourcePair?.relationships).toEqual([
+      { sourcePosition: 1, sourceNumber: 64, targetPosition: 1, targetNumber: 20 },
+      { sourcePosition: 2, sourceNumber: 65, targetPosition: 2, targetNumber: 28 },
+    ]);
+    expect(twoSourcePair?.occurrenceCount).toBe(2);
   });
 });
