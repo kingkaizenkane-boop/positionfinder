@@ -21,6 +21,7 @@ import {
 import {
   analyzeTransitions,
   findRepeatedTargetPairs,
+  findRepeatedTargetPairsBySharedSource,
   formatDrawNumbers,
   formatNumber,
   normalizeGameName,
@@ -32,6 +33,7 @@ import {
   type Numbers,
   type TransitionGroup,
   type RepeatedTargetPair,
+  type SharedSourceTargetPair,
 } from "@/lib/transition-analyzer";
 import { cn } from "@/lib/utils";
 import { SmartHistoricalImporter } from "@/components/smart-historical-importer";
@@ -265,8 +267,10 @@ function HistoricalData({ historyText, setHistoryText, provider, setProvider, pa
 
 function Dashboard({ analysis, currentNumbers, gameName, provider, playedDate, minimumOccurrences, setMinimumOccurrences, sourceFilter, setSourceFilter, targetFilter, setTargetFilter, search, setSearch, activeMatrixCell, setActiveMatrixCell, expandedTransition, setExpandedTransition, activeSource, setActiveSource, onSave, saving, onNew }: { analysis: AnalysisResult | null; currentNumbers: Numbers; gameName: string; provider: string; playedDate: string; minimumOccurrences: string; setMinimumOccurrences: (value: string) => void; sourceFilter: string; setSourceFilter: (value: string) => void; targetFilter: string; setTargetFilter: (value: string) => void; search: string; setSearch: (value: string) => void; activeMatrixCell: { source: number; target: number } | null; setActiveMatrixCell: (value: { source: number; target: number } | null) => void; expandedTransition: string | null; setExpandedTransition: (value: string | null) => void; activeSource: string; setActiveSource: (value: string) => void; onSave: () => void; saving: boolean; onNew: () => void }) {
   const [expandedTargetPair, setExpandedTargetPair] = useState<string | null>(null);
+  const [expandedSharedSourcePair, setExpandedSharedSourcePair] = useState<string | null>(null);
   const result = analyzeTransitions(currentNumbers, analysis?.orderedDraws ?? [], Number(minimumOccurrences), analysis?.duplicateCount ?? 0);
   const repeatedTargetPairs = findRepeatedTargetPairs(currentNumbers, result, Number(minimumOccurrences));
+  const sharedSourceTargetPairs = findRepeatedTargetPairsBySharedSource(currentNumbers, result, Number(minimumOccurrences));
   const filtered = result.transitions.filter((transition) => (activeSource === "all" || String(transition.sourcePosition) === activeSource) && (sourceFilter === "all" || String(transition.sourcePosition) === sourceFilter) && (targetFilter === "all" || String(transition.targetPosition) === targetFilter) && (!search || `${positionLabel(transition.sourcePosition, transition.sourceNumber)} ${positionLabel(transition.targetPosition, transition.targetNumber)}`.toLowerCase().includes(search.toLowerCase())));
   const matrixDetails = activeMatrixCell ? result.allTransitions.filter((item) => item.occurrenceCount >= Number(minimumOccurrences) && item.sourcePosition === activeMatrixCell.source && item.targetPosition === activeMatrixCell.target) : [];
   const targetGroups = [...filtered.reduce((groups, transition) => { const key = `${transition.targetPosition}|${transition.targetNumber}`; const list = groups.get(key) ?? []; list.push(transition); groups.set(key, list); return groups; }, new Map<string, TransitionGroup[]>()).entries()]
@@ -278,6 +282,7 @@ function Dashboard({ analysis, currentNumbers, gameName, provider, playedDate, m
     <div className="flex flex-wrap items-center gap-3 border-y border-border py-4"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Filter className="size-3" /> Filters</div><Select value={minimumOccurrences} onValueChange={setMinimumOccurrences}><SelectTrigger className="w-[145px]"><SelectValue /></SelectTrigger><SelectContent>{[1, 2, 3, 4, 5, 10].map((value) => <SelectItem key={value} value={String(value)}>{value}+ occurrences</SelectItem>)}</SelectContent></Select><Select value={sourceFilter} onValueChange={setSourceFilter}><SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All sources</SelectItem>{POSITIONS.map((position) => <SelectItem key={position} value={String(position)}>Source P{position}</SelectItem>)}</SelectContent></Select><Select value={targetFilter} onValueChange={setTargetFilter}><SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All targets</SelectItem>{POSITIONS.map((position) => <SelectItem key={position} value={String(position)}>Target P{position}</SelectItem>)}</SelectContent></Select><div className="relative ml-auto min-w-[190px] flex-1 sm:flex-none"><Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search relationships" className="pl-9" /></div></div>
     <section><SectionHeading icon={ArrowRight} title="Repeated transitions" meta={`${filtered.length} relationships`} /><div className="grid gap-3 lg:grid-cols-2">{filtered.slice(0, 12).map((transition) => <TransitionCard key={transition.key} transition={transition} expanded={expandedTransition === transition.key} onToggle={() => setExpandedTransition(expandedTransition === transition.key ? null : transition.key)} />)}{filtered.length === 0 && <EmptyState title="No repeated relationships at this threshold" description="Lower the minimum occurrence filter to inspect single historical transitions." />}</div></section>
      <section><SectionHeading icon={Target} title="Repeated target-pair analysis" meta={`${repeatedTargetPairs.length} matched pair patterns`} /><p className="-mt-2 mb-4 max-w-3xl text-sm text-muted-foreground">Line 3 target pairs are included only when their repeated occurrences preserve the same one or two Line 2 source paths.</p><div className="space-y-3">{repeatedTargetPairs.map((pair) => <TargetPairCard key={pair.key} pair={pair} expanded={expandedTargetPair === pair.key} onToggle={() => setExpandedTargetPair(expandedTargetPair === pair.key ? null : pair.key)} />)}{repeatedTargetPairs.length === 0 && <EmptyState title="No repeated target pairs with stable source paths" description="A repeated Line 3 pair is shown only when its positional Line 2 source relationship also repeats." />}</div></section>
+      <section><SectionHeading icon={Target} title="Shared-source target pairs" meta={`${sharedSourceTargetPairs.length} position-flexible patterns`} /><p className="-mt-2 mb-4 max-w-3xl text-sm text-muted-foreground">Line 3 target numbers may move between positions across occurrences, but the same one or two Line 2 source paths must repeat.</p><div className="space-y-3">{sharedSourceTargetPairs.map((pair) => <SharedSourceTargetPairCard key={pair.key} pair={pair} expanded={expandedSharedSourcePair === pair.key} onToggle={() => setExpandedSharedSourcePair(expandedSharedSourcePair === pair.key ? null : pair.key)} />)}{sharedSourceTargetPairs.length === 0 && <EmptyState title="No shared-source target pairs" description="A target-number pair is shown only when its source path repeats at the selected threshold." />}</div></section>
     <section><SectionHeading icon={Layers3} title="Positional convergence" meta={`${result.convergence.length} shared targets`} /><div className="grid gap-4 lg:grid-cols-2">{result.convergence.slice(0, 6).map((group) => <ConvergenceCard key={`${group.targetPosition}-${group.targetNumber}`} group={group} />)}{result.convergence.length === 0 && <EmptyState title="No positional convergence found" description="Convergence appears when different source observations lead to the same target position and number." />}</div></section>
     <section><SectionHeading icon={Target} title="Target analysis" meta="What source patterns led to each target" /><div className="grid gap-3 lg:grid-cols-2">{targetGroups.slice(0, 8).map((group) => <Card key={`${group.targetPosition}-${group.targetNumber}`}><CardContent className="p-4"><div className="flex items-center justify-between border-b border-border pb-3"><span className="text-xs uppercase tracking-wider text-muted-foreground">Target</span><span className="font-mono text-lg font-semibold text-primary">P{group.targetPosition}:{formatNumber(group.targetNumber)}</span></div><div className="mt-3 space-y-2">{group.sources.map((source) => <div key={source.key} className="flex items-center justify-between text-sm"><span className="font-mono">{positionLabel(source.sourcePosition, source.sourceNumber)} <span className="text-muted-foreground">→</span> P{source.targetPosition}:{formatNumber(source.targetNumber)}</span><Badge variant="outline" className="border-primary/30 text-primary">×{source.occurrenceCount}</Badge></div>)}</div></CardContent></Card>)}{targetGroups.length === 0 && <EmptyState title="No target relationships at this threshold" description="Lower the minimum occurrence filter to inspect more target patterns." />}</div></section>
     <section><SectionHeading icon={BookOpen} title="Source position analysis" meta="Current observations" /><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">{result.sources.map((source) => <SourceCard key={source.position} source={source} active={activeSource === "all" || activeSource === String(source.position)} onClick={() => setActiveSource(activeSource === String(source.position) ? "all" : String(source.position))} />)}</div></section>
@@ -330,6 +335,52 @@ function TargetPairCard({ pair, expanded, onToggle }: { pair: RepeatedTargetPair
           <div className="grid gap-2 sm:grid-cols-2">
             <div><div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Source paths</div><div className="font-mono text-sm text-amber-300">{evidence.relationships.map((relationship) => positionLabel(relationship.sourcePosition, relationship.sourceNumber)).join(" · ")}</div></div>
             <div><div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Target pair</div><div className="font-mono text-sm text-primary">{evidence.relationships.map((relationship) => positionLabel(relationship.targetPosition, relationship.targetNumber)).join(" · ")}</div></div>
+          </div>
+        </div>)}
+      </div>
+    </CardContent>}
+  </Card>;
+}
+function SharedSourceTargetPairCard({ pair, expanded, onToggle }: { pair: SharedSourceTargetPair; expanded: boolean; onToggle: () => void }) {
+  const sourceLabels = pair.sourceRelationships.map((relationship) => positionLabel(relationship.sourcePosition, relationship.sourceNumber));
+  const targetLabels = pair.targetNumbers.map(formatNumber);
+
+  return <Card className="border-amber-500/25">
+    <button className="flex w-full items-center justify-between gap-4 p-4 text-left" onClick={onToggle} aria-expanded={expanded}>
+      <div className="min-w-0 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">Line 2 shared source</span>
+          <span className="font-mono font-semibold text-amber-300">{sourceLabels.join(" + ")}</span>
+          <ArrowRight className="size-4 text-muted-foreground" />
+          <span className="text-xs uppercase tracking-wider text-muted-foreground">Line 3 target numbers</span>
+          <span className="font-mono font-semibold text-primary">{targetLabels.join(" + ")}</span>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <span>{pair.sourceCount} matching source number{pair.sourceCount === 1 ? "" : "s"}</span>
+          <span>·</span>
+          <span>Target positions may vary</span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <Badge className="bg-amber-500/15 text-amber-300 hover:bg-amber-500/15">×{pair.occurrenceCount}</Badge>
+        {expanded ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+      </div>
+    </button>
+    {expanded && <CardContent className="border-t border-border/70 bg-muted/20 px-4 py-4">
+      <div className="mb-4 grid gap-3 text-xs sm:grid-cols-3">
+        <div><div className="text-muted-foreground">Shared source position(s) and number(s)</div><div className="mt-1 font-mono text-amber-300">{sourceLabels.join(" · ")}</div></div>
+        <div><div className="text-muted-foreground">Repeated target numbers</div><div className="mt-1 font-mono text-primary">{targetLabels.join(" · ")}</div></div>
+        <div><div className="text-muted-foreground">Occurrence count</div><div className="mt-1 font-semibold">{pair.occurrenceCount}</div></div>
+      </div>
+      <div className="space-y-3">
+        {pair.evidence.map((evidence, index) => <div key={`${evidence.historicalDraw.id}-${evidence.nextDraw.id}-${index}`} className="border border-border/70 bg-background/40 p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-semibold uppercase tracking-wider text-primary">Occurrence #{index + 1}</span>
+            <span className="text-muted-foreground">Source draw {evidence.historicalDraw.drawNumber} → next draw {evidence.nextDraw.drawNumber} · {evidence.historicalDraw.drawDate}</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div><div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Shared source path(s)</div><div className="font-mono text-sm text-amber-300">{evidence.relationships.map((relationship) => positionLabel(relationship.sourcePosition, relationship.sourceNumber)).filter((label, position, labels) => labels.indexOf(label) === position).join(" · ")}</div></div>
+            <div><div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Actual target positions</div><div className="font-mono text-sm text-primary">{evidence.relationships.map((relationship) => positionLabel(relationship.targetPosition, relationship.targetNumber)).join(" · ")}</div></div>
           </div>
         </div>)}
       </div>

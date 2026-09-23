@@ -73,6 +73,15 @@ export type RepeatedTargetPair = {
   evidence: TargetPairEvidence[];
 };
 
+export type SharedSourceTargetPair = {
+  key: string;
+  sourceCount: 1 | 2;
+  sourceRelationships: Array<Pick<TargetPairRelationship, "sourcePosition" | "sourceNumber">>;
+  targetNumbers: [number, number];
+  occurrenceCount: number;
+  evidence: TargetPairEvidence[];
+};
+
 export type AnalysisResult = {
   orderedDraws: HistoricalDraw[];
   sources: SourceSummary[];
@@ -393,6 +402,63 @@ export function findRepeatedTargetPairs(currentNumbers: Numbers, analysis: Pick<
         };
         if (existing) existing.evidence.push(evidence);
         else pairMap.set(key, { key, sourceCount: sourceCount as 1 | 2, relationships, occurrenceCount: 1, evidence: [evidence] });
+      }
+    }
+  }
+
+  return [...pairMap.values()]
+    .map((pair) => ({ ...pair, occurrenceCount: pair.evidence.length }))
+    .filter((pair) => pair.occurrenceCount >= minimumOccurrences)
+    .sort((a, b) => b.occurrenceCount - a.occurrenceCount || a.sourceCount - b.sourceCount || a.key.localeCompare(b.key));
+}
+
+export function findRepeatedTargetPairsBySharedSource(currentNumbers: Numbers, analysis: Pick<AnalysisResult, "allTransitions">, minimumOccurrences = 2): SharedSourceTargetPair[] {
+  const currentSourceKeys = new Set(currentNumbers.map((number, index) => `${index + 1}|${number}`));
+  const transitionsByDrawPair = new Map<string, Array<{ transition: TransitionGroup; evidence: TransitionEvidence }>>();
+
+  for (const transition of analysis.allTransitions) {
+    if (!currentSourceKeys.has(`${transition.sourcePosition}|${transition.sourceNumber}`)) continue;
+    for (const evidence of transition.evidence) {
+      const pairKey = `${evidence.historicalDraw.id}|${evidence.nextDraw.id}`;
+      const pairTransitions = transitionsByDrawPair.get(pairKey) ?? [];
+      pairTransitions.push({ transition, evidence });
+      transitionsByDrawPair.set(pairKey, pairTransitions);
+    }
+  }
+
+  const pairMap = new Map<string, SharedSourceTargetPair>();
+  for (const pairTransitions of transitionsByDrawPair.values()) {
+    for (let firstIndex = 0; firstIndex < pairTransitions.length; firstIndex += 1) {
+      const first = pairTransitions[firstIndex];
+      if (!first) continue;
+      for (let secondIndex = firstIndex + 1; secondIndex < pairTransitions.length; secondIndex += 1) {
+        const second = pairTransitions[secondIndex];
+        if (!second || first.transition.targetPosition === second.transition.targetPosition) continue;
+
+        const sourceRelationships = [first.transition, second.transition]
+          .map((transition) => ({ sourcePosition: transition.sourcePosition, sourceNumber: transition.sourceNumber }))
+          .sort((a, b) => a.sourcePosition - b.sourcePosition || a.sourceNumber - b.sourceNumber);
+        const sourceKeys = new Set(sourceRelationships.map((relationship) => `${relationship.sourcePosition}|${relationship.sourceNumber}`));
+        const sourceCount = sourceKeys.size as 1 | 2;
+        const targetNumbers = [first.transition.targetNumber, second.transition.targetNumber]
+          .sort((a, b) => a - b) as [number, number];
+        const key = `${sourceRelationships.map((relationship) => `${relationship.sourcePosition}|${relationship.sourceNumber}`).join("|")}=>${targetNumbers.join("|")}`;
+        const relationships = [first.transition, second.transition]
+          .sort((a, b) => a.targetPosition - b.targetPosition)
+          .map((transition) => ({
+            sourcePosition: transition.sourcePosition,
+            sourceNumber: transition.sourceNumber,
+            targetPosition: transition.targetPosition,
+            targetNumber: transition.targetNumber,
+          })) as [TargetPairRelationship, TargetPairRelationship];
+        const evidence: TargetPairEvidence = {
+          historicalDraw: first.evidence.historicalDraw,
+          nextDraw: first.evidence.nextDraw,
+          relationships,
+        };
+        const existing = pairMap.get(key);
+        if (existing) existing.evidence.push(evidence);
+        else pairMap.set(key, { key, sourceCount, sourceRelationships, targetNumbers, occurrenceCount: 1, evidence: [evidence] });
       }
     }
   }
