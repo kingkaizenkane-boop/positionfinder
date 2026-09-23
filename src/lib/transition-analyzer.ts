@@ -435,8 +435,9 @@ export function findRepeatedTargetPairsBySharedSource(currentNumbers: Numbers, a
         const second = pairTransitions[secondIndex];
         if (!second || first.transition.targetPosition === second.transition.targetPosition) continue;
 
-        const sourceRelationships = [first.transition, second.transition]
+        const sourceRelationships = [...new Map([first.transition, second.transition]
           .map((transition) => ({ sourcePosition: transition.sourcePosition, sourceNumber: transition.sourceNumber }))
+          .map((relationship) => [`${relationship.sourcePosition}|${relationship.sourceNumber}`, relationship] as const)).values()]
           .sort((a, b) => a.sourcePosition - b.sourcePosition || a.sourceNumber - b.sourceNumber);
         const sourceKeys = new Set(sourceRelationships.map((relationship) => `${relationship.sourcePosition}|${relationship.sourceNumber}`));
         const sourceCount = sourceKeys.size as 1 | 2;
