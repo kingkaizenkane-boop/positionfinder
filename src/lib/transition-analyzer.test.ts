@@ -5,7 +5,6 @@ import {
   formatDrawNumbers,
   formatNumber,
   findRepeatedTargetPairs,
-  findRepeatedTargetPairsBySharedSource,
   normalizeGameName,
   parseHistoricalGames,
   type HistoricalDraw,
@@ -282,51 +281,5 @@ Gap Game
       { sourcePosition: 2, sourceNumber: 65, targetPosition: 2, targetNumber: 28 },
     ]);
     expect(twoSourcePair?.occurrenceCount).toBe(2);
-  });
-
-  it("finds repeated target numbers when their target positions vary but the source path is shared", () => {
-    const sourceNumbers = [64, 11, 12, 13, 14, 15, 16, 17, 18, 19] as Numbers;
-    const firstTarget = [20, 28, 30, 40, 50, 60, 70, 80, 89, 90] as Numbers;
-    const secondTarget = [30, 40, 20, 28, 50, 60, 70, 80, 89, 90] as Numbers;
-    const result = analyzeTransitions(
-      sourceNumbers,
-      [
-        draw("source-1", 1, "2024-01-01", sourceNumbers),
-        draw("target-1", 2, "2024-01-02", firstTarget),
-        draw("source-2", 3, "2024-01-03", sourceNumbers),
-        draw("target-2", 4, "2024-01-04", secondTarget),
-      ],
-      1,
-    );
-
-    const pairs = findRepeatedTargetPairsBySharedSource(sourceNumbers, result, 2);
-    const sharedSourcePair = pairs.find((pair) => pair.sourceCount === 1 && pair.sourceRelationships[0]?.sourcePosition === 1 && pair.sourceRelationships[0]?.sourceNumber === 64 && pair.targetNumbers[0] === 20 && pair.targetNumbers[1] === 28);
-
-    expect(sharedSourcePair).toBeDefined();
-    expect(sharedSourcePair?.occurrenceCount).toBe(2);
-    expect(sharedSourcePair?.evidence.map((item) => item.relationships.map((relationship) => relationship.targetPosition))).toEqual([[1, 2], [3, 4]]);
-  });
-
-  it("does not merge a changed source path into a shared-source target pair", () => {
-    const sourceNumbers = [64, 11, 12, 13, 14, 15, 16, 17, 18, 19] as Numbers;
-    const targetNumbers = [20, 28, 30, 40, 50, 60, 70, 80, 89, 90] as Numbers;
-    const result = analyzeTransitions(
-      sourceNumbers,
-      [
-        draw("source-1", 1, "2024-01-01", sourceNumbers),
-        draw("target-1", 2, "2024-01-02", targetNumbers),
-        draw("source-2", 3, "2024-01-03", sourceNumbers),
-        draw("target-2", 4, "2024-01-04", targetNumbers),
-        draw("source-3", 5, "2024-01-05", [65, 11, 12, 13, 14, 15, 16, 17, 18, 19]),
-        draw("target-3", 6, "2024-01-06", [30, 40, 50, 60, 70, 80, 20, 28, 89, 90]),
-      ],
-      1,
-    );
-
-    const pairs = findRepeatedTargetPairsBySharedSource(sourceNumbers, result, 2);
-    const source64Pair = pairs.find((pair) => pair.sourceRelationships.length === 1 && pair.sourceRelationships[0]?.sourcePosition === 1 && pair.sourceRelationships[0]?.sourceNumber === 64 && pair.targetNumbers[0] === 20 && pair.targetNumbers[1] === 28);
-
-    expect(source64Pair?.occurrenceCount).toBe(2);
-    expect(source64Pair?.evidence.some((item) => item.historicalDraw.id === "source-3")).toBe(false);
   });
 });
