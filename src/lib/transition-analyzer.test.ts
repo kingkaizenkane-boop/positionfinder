@@ -284,3 +284,60 @@ Gap Game
     expect(twoSourcePair?.occurrenceCount).toBe(2);
   });
 });
+
+describe("Line 3 total frequency", () => {
+  it("counts every target number across all consecutive draw pairs", () => {
+    const result = analyzeTransitions(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as Numbers,
+      [
+        draw("source-1", 1, "2024-01-01", [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
+        draw("target-1", 2, "2024-01-02", [21, 22, 23, 24, 25, 26, 27, 28, 29, 30]),
+        draw("source-2", 3, "2024-01-03", [31, 32, 33, 34, 35, 36, 37, 38, 39, 40]),
+        draw("target-2", 4, "2024-01-04", [21, 42, 43, 44, 45, 46, 47, 48, 49, 50]),
+      ],
+      1,
+    );
+
+    const frequency = countTargetNumbers(result);
+    const twentyOne = frequency.find((item) => item.number === 21);
+    const twentyTwo = frequency.find((item) => item.number === 22);
+
+    expect(twentyOne?.occurrences).toBe(2);
+    expect(twentyOne?.drawCount).toBe(2);
+    expect(twentyOne?.positions).toEqual({ 1: 2 });
+    expect(twentyTwo?.occurrences).toBe(1);
+    expect(frequency.find((item) => item.number === 11)).toBeUndefined();
+    expect(frequency.find((item) => item.number === 31)).toBeUndefined();
+    expect(frequency[0]?.number).toBe(21);
+  });
+
+  it("excludes non-adjacent and cross-game draws from Line 3 frequency counts", () => {
+    const result = analyzeTransitions(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as Numbers,
+      [
+        draw("a-1", 1, "2024-01-01", [11, 12, 13, 14, 15, 16, 17, 18, 19, 20], "Game A"),
+        draw("a-3", 3, "2024-01-03", [21, 22, 23, 24, 25, 26, 27, 28, 29, 30], "Game A"),
+        draw("b-2", 2, "2024-01-02", [41, 42, 43, 44, 45, 46, 47, 48, 49, 50], "Game B"),
+      ],
+      1,
+    );
+
+    expect(countTargetNumbers(result)).toEqual([]);
+  });
+
+  it("counts a number twice when it appears at two positions in the same target draw", () => {
+    const result = analyzeTransitions(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as Numbers,
+      [
+        draw("source-1", 1, "2024-01-01", [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]),
+        draw("target-1", 2, "2024-01-02", [7, 7, 23, 24, 25, 26, 27, 28, 29, 30]),
+      ],
+      1,
+    );
+
+    const seven = countTargetNumbers(result).find((item) => item.number === 7);
+    expect(seven?.occurrences).toBe(2);
+    expect(seven?.drawCount).toBe(1);
+    expect(seven?.positions).toEqual({ 1: 1, 2: 1 });
+  });
+});
