@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzeTransitions,
+  countTargetNumbers,
   formatDrawNumbers,
   formatNumber,
   findRepeatedTargetPairs,
