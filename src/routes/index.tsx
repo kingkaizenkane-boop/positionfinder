@@ -267,6 +267,15 @@ function Dashboard({ analysis, currentNumbers, gameName, provider, playedDate, m
   const [expandedTargetPair, setExpandedTargetPair] = useState<string | null>(null);
   const result = analyzeTransitions(currentNumbers, analysis?.orderedDraws ?? [], Number(minimumOccurrences), analysis?.duplicateCount ?? 0);
   const repeatedTargetPairs = findRepeatedTargetPairs(currentNumbers, result, Number(minimumOccurrences));
+  const targetPairFrequency = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const pair of repeatedTargetPairs) {
+      for (const relationship of pair.relationships) {
+        counts.set(relationship.targetNumber, (counts.get(relationship.targetNumber) ?? 0) + pair.occurrenceCount);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+  }, [repeatedTargetPairs]);
   const filtered = result.transitions.filter((transition) => (activeSource === "all" || String(transition.sourcePosition) === activeSource) && (sourceFilter === "all" || String(transition.sourcePosition) === sourceFilter) && (targetFilter === "all" || String(transition.targetPosition) === targetFilter) && (!search || `${positionLabel(transition.sourcePosition, transition.sourceNumber)} ${positionLabel(transition.targetPosition, transition.targetNumber)}`.toLowerCase().includes(search.toLowerCase())));
   const matrixDetails = activeMatrixCell ? result.allTransitions.filter((item) => item.occurrenceCount >= Number(minimumOccurrences) && item.sourcePosition === activeMatrixCell.source && item.targetPosition === activeMatrixCell.target) : [];
   const targetGroups = [...filtered.reduce((groups, transition) => { const key = `${transition.targetPosition}|${transition.targetNumber}`; const list = groups.get(key) ?? []; list.push(transition); groups.set(key, list); return groups; }, new Map<string, TransitionGroup[]>()).entries()]
