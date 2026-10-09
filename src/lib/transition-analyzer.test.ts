@@ -307,7 +307,7 @@ describe("Line 3 total frequency", () => {
     expect(twentyOne?.positions).toEqual({ 1: 2 });
     expect(twentyTwo?.occurrences).toBe(1);
     expect(frequency.find((item) => item.number === 11)).toBeUndefined();
-    expect(frequency.find((item) => item.number === 31)).toBeUndefined();
+    expect(frequency.find((item) => item.number === 31)?.occurrences).toBe(1);
     expect(frequency[0]?.number).toBe(21);
   });
 
