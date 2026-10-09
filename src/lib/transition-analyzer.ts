@@ -353,6 +353,33 @@ export function analyzeTransitions(currentNumbers: Numbers, inputDraws: Historic
   return { orderedDraws, sources, transitions, allTransitions, convergence, matrix: [...cellMap.values()], duplicateCount, analyzedDrawCount: analyzedDraws.length };
 }
 
+export type TargetNumberFrequency = {
+  number: number;
+  occurrences: number;
+  drawCount: number;
+  positions: Partial<Record<Position, number>>;
+};
+
+export function countTargetNumbers(analysis: Pick<AnalysisResult, "orderedDraws">): TargetNumberFrequency[] {
+  const { orderedDraws } = analysis;
+  const counts = new Map<number, { number: number; occurrences: number; drawIds: Set<string>; positions: Partial<Record<Position, number>> }>();
+  orderedDraws.forEach((historicalDraw, drawIndex) => {
+    const nextDraw = historicalDraw.followingDraw ?? orderedDraws[drawIndex + 1];
+    if (!nextDraw || (!historicalDraw.followingDraw && !canPair(historicalDraw, nextDraw))) return;
+    for (const position of POSITIONS) {
+      const number = nextDraw.numbers[position - 1] ?? 0;
+      const entry = counts.get(number) ?? { number, occurrences: 0, drawIds: new Set<string>(), positions: {} };
+      entry.occurrences += 1;
+      entry.drawIds.add(nextDraw.id);
+      entry.positions[position] = (entry.positions[position] ?? 0) + 1;
+      counts.set(number, entry);
+    }
+  });
+  return [...counts.values()]
+    .map(({ drawIds, ...entry }) => ({ ...entry, drawCount: drawIds.size }))
+    .sort((a, b) => b.occurrences - a.occurrences || a.number - b.number);
+}
+
 export function findRepeatedTargetPairs(currentNumbers: Numbers, analysis: Pick<AnalysisResult, "allTransitions"> , minimumOccurrences = 2): RepeatedTargetPair[] {
   const currentSourceKeys = new Set(currentNumbers.map((number, index) => `${index + 1}|${number}`));
   const transitionsByDrawPair = new Map<string, Array<{ transition: TransitionGroup; evidence: TransitionEvidence }>>();
