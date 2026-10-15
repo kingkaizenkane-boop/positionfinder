@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AuthPanel } from "@/components/auth-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,19 +97,8 @@ function AnalyzerApp() {
   const [activeSource, setActiveSource] = useState("all");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
-  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => {
     setPlayedDate(new Date().toISOString().slice(0, 10));
-    void supabase.auth.getUser().then(({ data }) => {
-      setSignedInEmail(data.user?.email ?? null);
-      setAuthChecked(true);
-    });
-    const { data: authSubscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedInEmail(session?.user.email ?? null);
-      setAuthChecked(true);
-    });
-    return () => authSubscription.subscription.unsubscribe();
   }, []);
   const parsed = useMemo(() => parseHistoricalGames(historyText), [historyText]);
   const visibleInvalid = parsed.invalid.filter((item) => !invalidDismissed.includes(item.sourceLine));
@@ -133,19 +121,12 @@ function AnalyzerApp() {
     if (!analysis) return;
     setSaving(true);
     setNotice("");
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) {
-      setNotice("Sign in before saving an analysis.");
-      setSaving(false);
-      return;
-    }
-    const userId = authData.user.id;
     const normalizedGameName = normalizeGameName(gameName);
     const normalizedProvider = normalizeGameName(provider);
     const { data: existingGames, error: existingGamesError } = await supabase.from("games").select("id, game_name, provider");
     let game = (existingGames ?? []).find((item) => normalizeGameName(item.game_name) === normalizedGameName && normalizeGameName(item.provider) === normalizedProvider);
     if (!game && !existingGamesError) {
-      const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: gameName, provider, user_id: userId }).select("id, game_name, provider").single();
+      const { data: createdGame, error: gameError } = await supabase.from("games").insert({ game_name: gameName, provider }).select("id, game_name, provider").single();
       if (createdGame) game = createdGame;
       if (gameError && !game) {
         const { data: concurrentGames, error: concurrentLookupError } = await supabase.from("games").select("id, game_name, provider");
@@ -161,7 +142,6 @@ function AnalyzerApp() {
      const persistedDraws = [...new Map([...analysis.orderedDraws, ...analysis.orderedDraws.flatMap((draw) => draw.followingDraw ? [draw.followingDraw] : [])].map((draw) => [draw.id, draw])).values()];
      const drawRows = persistedDraws.map((draw) => ({
       game_id: game.id,
-       user_id: userId,
       draw_number: draw.drawNumber,
       draw_date: draw.drawDate,
       p1: draw.numbers[0], p2: draw.numbers[1], p3: draw.numbers[2], p4: draw.numbers[3], p5: draw.numbers[4],
@@ -174,7 +154,6 @@ function AnalyzerApp() {
       return;
     }
     const { data: session, error: sessionError } = await supabase.from("analysis_sessions").insert({
-       user_id: userId,
       game_id: game.id,
       game_name: gameName,
       provider,
@@ -191,7 +170,6 @@ function AnalyzerApp() {
     const idByKey = new Map(savedDraws.map((draw) => [`${draw.draw_number}|${draw.draw_date}`, draw.id]));
      const transitionRows = analysis.allTransitions.flatMap((transition) => transition.evidence.map((evidence) => ({
       analysis_session_id: session.id,
-       user_id: userId,
       historical_draw_id: idByKey.get(`${evidence.historicalDraw.drawNumber}|${evidence.historicalDraw.drawDate}`),
       next_draw_id: idByKey.get(`${evidence.nextDraw.drawNumber}|${evidence.nextDraw.drawDate}`),
       source_position: transition.sourcePosition,
@@ -210,14 +188,6 @@ function AnalyzerApp() {
     setHistoryText((text) => text.split(/\r?\n/).filter((_, index) => index + 1 !== line).join("\n"));
   };
 
-  if (!authChecked) {
-    return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Checking your account…</div>;
-  }
-
-  if (!signedInEmail) {
-    return <AuthPanel />;
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <aside className={cn("fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-sidebar px-4 py-5 transition-transform lg:translate-x-0", mobileNav ? "translate-x-0" : "-translate-x-full")}>
@@ -235,7 +205,7 @@ function AnalyzerApp() {
         <div className="mt-auto space-y-1"><NavItem icon={Settings2} label="Settings" active={view === "settings"} onClick={() => { setView("settings"); setMobileNav(false); }} /><div className="mt-5 border-t border-border pt-4"><div className="px-2 text-xs text-muted-foreground">Cloud workspace</div><div className="mt-2 flex items-center gap-2 px-2 text-xs text-emerald-400"><span className="size-2 rounded-full bg-emerald-400" /> Connected</div></div></div>
       </aside>
       <div className="lg:pl-64">
-         <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-xl"><div className="flex h-16 items-center justify-between px-5 lg:px-8"><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu /></Button><div className="hidden lg:block"><div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Historical pattern workspace</div></div><div className="flex items-center gap-3"><Badge variant="outline" className="hidden border-primary/30 bg-primary/10 text-primary sm:flex"><Sparkles className="mr-1 size-3" /> Analysis mode</Badge><span className="hidden text-xs text-muted-foreground xl:inline">{signedInEmail}</span><Button variant="outline" size="sm" onClick={() => setView("new")}><Plus className="size-4" /> New analysis</Button><Button variant="ghost" size="sm" onClick={() => void supabase.auth.signOut()}>Sign out</Button></div></div></header>
+         <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-xl"><div className="flex h-16 items-center justify-between px-5 lg:px-8"><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu /></Button><div className="hidden lg:block"><div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Historical pattern workspace</div></div><div className="flex items-center gap-3"><Badge variant="outline" className="hidden border-primary/30 bg-primary/10 text-primary sm:flex"><Sparkles className="mr-1 size-3" /> Analysis mode</Badge><Button variant="outline" size="sm" onClick={() => setView("new")}><Plus className="size-4" /> New analysis</Button></div></div></header>
         {mobileNav && <button className="fixed inset-0 z-30 bg-background/70 lg:hidden" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
         <main className="mx-auto max-w-[1600px] px-5 py-7 lg:px-9 lg:py-9">
           {notice && <div className="mb-6 flex items-center justify-between border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary"><span>{notice}</span><Button variant="ghost" size="icon" onClick={() => setNotice("")} aria-label="Dismiss message"><X /></Button></div>}

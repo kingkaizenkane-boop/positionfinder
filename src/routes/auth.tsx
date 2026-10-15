@@ -1,16 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AuthPanel } from "@/components/auth-panel";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/auth")({
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
+  },
   head: () => ({
     meta: [
-      { title: "Sign in · PositionFinder" },
-      { name: "description", content: "Sign in to PositionFinder to manage historical data and saved analyses." },
-      { property: "og:title", content: "Sign in · PositionFinder" },
-      { property: "og:description", content: "Access your PositionFinder historical data and saved analyses." },
+      { title: "PositionFinder · Testing workspace" },
+      { name: "description", content: "Open testing workspace for positional transition analysis." },
+      { property: "og:title", content: "PositionFinder · Testing workspace" },
+      { property: "og:description", content: "Open testing workspace for positional transition analysis." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: AuthPanel,
+  component: () => null,
 });
