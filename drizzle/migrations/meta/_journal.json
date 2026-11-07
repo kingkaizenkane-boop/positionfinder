@@ -15,6 +15,13 @@
       "when": 1794071553063,
       "tag": "0001_add_zsa_analysis_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794072650369,
+      "tag": "0002_atomic_zsa_source_import",
+      "breakpoints": true
     }
   ]
 }
