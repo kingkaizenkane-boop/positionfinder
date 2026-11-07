@@ -36,6 +36,7 @@ import {
 } from "@/lib/transition-analyzer";
 import { cn } from "@/lib/utils";
 import { SmartHistoricalImporter } from "@/components/smart-historical-importer";
+import { ZsaWorkspace } from "@/components/zsa-workspace";
 import {
   Activity,
   ArrowDown,
@@ -76,7 +77,7 @@ export const Route = createFileRoute("/")({
   component: AnalyzerApp,
 });
 
-type View = "dashboard" | "new" | "history" | "saved" | "settings";
+type View = "dashboard" | "new" | "history" | "saved" | "settings" | "zsa";
 
 function AnalyzerApp() {
   const [view, setView] = useState<View>("dashboard");
@@ -201,6 +202,7 @@ function AnalyzerApp() {
           <NavItem icon={Plus} label="New Analysis" active={view === "new"} onClick={() => { setView("new"); setMobileNav(false); }} />
           <NavItem icon={Database} label="Historical Data" active={view === "history"} onClick={() => { setView("history"); setMobileNav(false); }} />
           <NavItem icon={FileClock} label="Saved Analyses" active={view === "saved"} onClick={() => { setView("saved"); setMobileNav(false); }} />
+          <NavItem icon={Layers3} label="Zero-Separated Analysis" active={view === "zsa"} onClick={() => { setView("zsa"); setMobileNav(false); }} />
         </nav>
         <div className="mt-auto space-y-1"><NavItem icon={Settings2} label="Settings" active={view === "settings"} onClick={() => { setView("settings"); setMobileNav(false); }} /><div className="mt-5 border-t border-border pt-4"><div className="px-2 text-xs text-muted-foreground">Cloud workspace</div><div className="mt-2 flex items-center gap-2 px-2 text-xs text-emerald-400"><span className="size-2 rounded-full bg-emerald-400" /> Connected</div></div></div>
       </aside>
@@ -214,6 +216,7 @@ function AnalyzerApp() {
            {view === "history" && <HistoricalData historyText={historyText} setHistoryText={setHistoryText} provider={provider} setProvider={setProvider} parsed={parsed} visibleInvalid={visibleInvalid} removeInvalid={removeInvalid} />}
            {view === "saved" && <SavedAnalyses onOpen={(row) => { setGameName(row.game_name); setProvider(row.provider); setPlayedDate(row.played_date); setCurrentNumbers([row.current_p1, row.current_p2, row.current_p3, row.current_p4, row.current_p5, row.current_p6, row.current_p7, row.current_p8, row.current_p9, row.current_p10]); setMinimumOccurrences(String(row.minimum_occurrences)); setView("dashboard"); setNotice("Saved session loaded. Re-run it with the current historical dataset to refresh evidence."); }} />}
           {view === "settings" && <SettingsView />}
+          {view === "zsa" && <ZsaWorkspace />}
         </main>
       </div>
     </div>
