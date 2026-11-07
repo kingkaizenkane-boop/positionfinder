@@ -49,6 +49,7 @@ export function ZsaWorkspace() {
   const [casePositions, setCasePositions] = useState("");
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
   const [savedRunName, setSavedRunName] = useState("ZSA research snapshot");
+  const [loadError, setLoadError] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -61,6 +62,9 @@ export function ZsaWorkspace() {
       supabase.from("zsa_validation_cases").select("*").order("created_at", { ascending: false }).limit(1),
       supabase.from("zsa_analysis_runs").select("id, name, dataset_version, created_at, result_summary, dataset_snapshot").order("created_at", { ascending: false }).limit(20),
     ]);
+    const failedRead = [groupsResult, occurrencesResult, winnersResult, casesResult, runsResult].find((result) => result.error)?.error;
+    if (failedRead) setLoadError("ZSA records could not be loaded. Check the shared Cloud connection and try again.");
+    else setLoadError("");
     const occurrences = (occurrencesResult.data ?? []) as OccurrenceRow[];
     const occurrenceById = new Map(occurrences.map((row) => [row.id, row]));
     const winningRows = (winnersResult.data ?? []) as WinnerRow[];
@@ -234,6 +238,34 @@ export function ZsaWorkspace() {
     setBusy(false);
   };
 
+  const evaluateValidation = async () => {
+    if (!caseRow?.line3_values || !caseRow.winning_positions) { setStatus("Add the Line 3 candidate record and confirm all five winner positions before evaluation."); return; }
+    const historicalPairs = new Set(analysis.pairs.map((pair) => pair.key));
+    const actualPairs: string[] = [];
+    for (let first = 0; first < caseRow.winning_numbers.length; first += 1) {
+      for (let second = first + 1; second < caseRow.winning_numbers.length; second += 1) {
+        const a = caseRow.winning_numbers[first];
+        const b = caseRow.winning_numbers[second];
+        if (a !== undefined && b !== undefined) actualPairs.push([a, b].sort((left, right) => left - right).join("-"));
+      }
+    }
+    const snapshot = {
+      baselineCapturedAt: new Date().toISOString(),
+      baselineGroupIds: groups.map((group) => group.id),
+      baselineGroups: groups.map((group) => ({ ...group })),
+      filters: analysis.filters,
+      baselineResults: analysis,
+      actualWinningPairs: actualPairs,
+      historicallyObservedWinningPairs: actualPairs.filter((pair) => historicalPairs.has(pair)),
+      note: "The validation case was excluded from its own historical baseline.",
+    };
+    setBusy(true);
+    const result = await supabase.from("zsa_validation_cases").update({ analysis_snapshot: snapshot, validation_status: "evaluated" }).eq("id", caseRow.id);
+    if (result.error) setStatus("The frozen validation snapshot could not be saved.");
+    else { setStatus("Validation compared against the saved historical baseline; this case was not included in it."); await loadWorkspace(); }
+    setBusy(false);
+  };
+
   const nav: Array<{ key: WorkspaceView; label: string; icon: typeof Activity }> = [
     { key: "overview", label: "Overview", icon: Activity },
     { key: "import", label: "Import & data quality", icon: Upload },
@@ -252,6 +284,7 @@ export function ZsaWorkspace() {
     </div>
     <div className="flex gap-2 overflow-x-auto border-b border-border pb-2">{nav.map(({ key, label, icon: Icon }) => <Button key={key} variant={activeView === key ? "default" : "ghost"} size="sm" className="shrink-0" onClick={() => setActiveView(key)}><Icon className="size-4" />{label}</Button>)}</div>
     {status && <div className="flex items-center justify-between border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-primary"><span>{status}</span><Button variant="ghost" size="sm" onClick={() => setStatus("")}>Dismiss</Button></div>}
+    {loadError && <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{loadError}<Button variant="ghost" size="sm" className="ml-2" onClick={() => void loadWorkspace()}>Retry</Button></div>}
     {loading ? <div className="border border-dashed border-border px-5 py-10 text-center text-sm text-muted-foreground">Loading ZSA records…</div> : <>
       {activeView === "overview" && <Overview analysis={analysis} groups={groups} statusCounts={statusCounts} onView={setActiveView} onSave={() => void saveReport()} busy={busy} />}
       {activeView === "import" && <ImportView provider={provider} setProvider={setProvider} sourceText={sourceText} setSourceText={setSourceText} preview={preview} confirmations={confirmations} setConfirmations={setConfirmations} makePreview={makePreview} importPreview={() => void importPreview()} busy={busy} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} winnersInput={winnersInput} setWinnersInput={setWinnersInput} winnerPositionsInput={winnerPositionsInput} setWinnerPositionsInput={setWinnerPositionsInput} saveWinners={() => void saveWinners()} />}
@@ -259,7 +292,7 @@ export function ZsaWorkspace() {
       {activeView === "positions" && <PositionView analysis={analysis} />}
       {activeView === "mappings" && <MappingView analysis={analysis} />}
       {activeView === "combinations" && <CombinationView analysis={analysis} />}
-      {activeView === "validation" && <ValidationView caseRow={caseRow} line3={caseLine3} setLine3={setCaseLine3} positions={casePositions} setPositions={setCasePositions} save={() => void saveValidationUpdate()} busy={busy} />}
+      {activeView === "validation" && <ValidationView caseRow={caseRow} line3={caseLine3} setLine3={setCaseLine3} positions={casePositions} setPositions={setCasePositions} save={() => void saveValidationUpdate()} evaluate={() => void evaluateValidation()} busy={busy} />}
       {activeView === "reports" && <ReportsView runs={savedRuns} name={savedRunName} setName={setSavedRunName} save={() => void saveReport()} busy={busy} />}
     </>}
   </div>;
