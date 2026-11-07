@@ -314,13 +314,14 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
 function isConfirmedComplete(group: ZsaConfirmedGroup): group is ZsaConfirmedGroup & { line1: ZsaNumbers; line2: ZsaNumbers; line3: ZsaNumbers; winningNumbers: number[] } {
   if (!group.groupingConfirmed || group.completeness !== "complete" || !group.winnerConfirmed) return false;
   if (!group.line1 || !group.line2 || !group.line3 || !group.winningNumbers || group.winningNumbers.length !== 5) return false;
+  const line3 = group.line3;
   const candidateLines = [group.line1, group.line2, group.line3];
   if (candidateLines.some((line) => line.length !== 10 || line.some((value) => !Number.isInteger(value) || value < 1 || value > 90))) return false;
   if (group.winningNumbers.some((value) => !Number.isInteger(value) || value < 1 || value > 90) || new Set(group.winningNumbers).size !== 5) return false;
-  if (!group.winningNumbers.every((value) => group.line3.includes(value))) return false;
+  if (!group.winningNumbers.every((value) => line3.includes(value))) return false;
   if (group.winningPositions) {
     if (group.winningPositions.length !== 5 || group.winningPositions.some((position) => !Number.isInteger(position) || position < 1 || position > 10) || new Set(group.winningPositions).size !== 5) return false;
-    if (!group.winningPositions.every((position, index) => group.line3?.[position - 1] === group.winningNumbers?.[index])) return false;
+    if (!group.winningPositions.every((position, index) => line3[position - 1] === group.winningNumbers?.[index])) return false;
   }
   return true;
 }
@@ -342,6 +343,7 @@ export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { 
   const pairNumbers = new Map<string, [number, number]>();
 
   for (const group of eligible) {
+    if (!isConfirmedComplete(group)) continue;
     const winners = group.winningNumbers;
     if (!winners) continue;
     for (let first = 0; first < winners.length; first += 1) {
