@@ -44,6 +44,8 @@ export type ZsaConfirmedGroup = {
   line1: ZsaNumbers | null;
   line2: ZsaNumbers | null;
   line3: ZsaNumbers | null;
+  line2DrawNumber?: number | null;
+  line3DrawNumber?: number | null;
   winningNumbers: number[] | null;
   winningPositions: number[] | null;
   winnerConfirmed: boolean;
@@ -341,11 +343,14 @@ export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { 
           provider: group.provider,
           groupSequence: group.groupSequence,
           date: group.drawDate,
-          drawNumber: group.line3?.length ? null : null,
+          drawNumber: group.line3DrawNumber ?? null,
           winningNumbers: pair,
           line2: group.line2,
           line3: group.line3,
-          winningPositions: group.winningPositions,
+          winningPositions: group.winningPositions ? [
+            group.winningPositions[winners.indexOf(pair[0])] ?? 0,
+            group.winningPositions[winners.indexOf(pair[1])] ?? 0,
+          ] : null,
         });
         pairEvidence.set(key, list);
       }
@@ -396,10 +401,11 @@ export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { 
       }
 
       const targetPositions = evidence.winningPositions;
-      if (!targetPositions || targetPositions.length !== 5 || !evidence.winningNumbers.every((number, index) => evidence.line3[targetPositions[index] === undefined ? -1 : (targetPositions[index] as number) - 1] === number)) continue;
-      for (const winner of evidence.winningNumbers) {
-        const winnerIndex = evidence.winningNumbers.indexOf(winner);
+      if (!targetPositions || targetPositions.length !== 2 || !evidence.winningNumbers.every((number, index) => evidence.line3[targetPositions[index] === undefined ? -1 : (targetPositions[index] as number) - 1] === number)) continue;
+      for (const winnerIndex of [0, 1]) {
+        const winner = evidence.winningNumbers[winnerIndex];
         const targetPosition = targetPositions[winnerIndex];
+        if (winner === undefined) continue;
         if (targetPosition === undefined) continue;
         for (const sourcePosition of positions) {
           const sourceNumber = evidence.line2[sourcePosition - 1];
