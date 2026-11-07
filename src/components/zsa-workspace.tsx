@@ -123,25 +123,6 @@ export function ZsaWorkspace() {
     }
     setBusy(true);
     setStatus("Saving source text and group evidence…");
-    const gameIds = new Map<string, string>();
-    const gameNames = [...new Set(preview.groups.map((group) => group.gameName))];
-    for (const gameName of gameNames) {
-      const existing = await supabase.from("games").select("id, game_name, provider");
-      const found = (existing.data ?? []).find((game) => normalized(game.game_name) === normalized(gameName) && normalized(game.provider) === normalized(preview.provider));
-      if (found) gameIds.set(normalized(gameName), found.id);
-      else {
-        const created = await supabase.from("games").insert({ game_name: gameName, provider: preview.provider }).select("id").single();
-        if (created.error || !created.data) {
-          const retry = await supabase.from("games").select("id, game_name, provider");
-          const concurrentWinner = (retry.data ?? []).find((game) => normalized(game.game_name) === normalized(gameName) && normalized(game.provider) === normalized(preview.provider));
-          if (!concurrentWinner) { setStatus(`Could not prepare the game record for ${gameName}; the atomic source save was not started.`); setBusy(false); return; }
-          gameIds.set(normalized(gameName), concurrentWinner.id);
-        } else {
-        gameIds.set(normalized(gameName), created.data.id);
-        }
-      }
-    }
-
     const roleByLine = new Map<number, number>();
     for (const group of preview.groups) {
       if (group.line1) roleByLine.set(group.line1.sourceLine, 1);
