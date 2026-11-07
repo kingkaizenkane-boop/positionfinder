@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794052480380,
+      "tag": "0000_enable_shared_testing_access",
+      "breakpoints": true
+    }
+  ]
+}
