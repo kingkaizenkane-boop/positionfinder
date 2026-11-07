@@ -133,13 +133,14 @@ describe("confirmed ZSA analysis", () => {
     expect(combined.map((item) => item.sourceNumbers)).toEqual([[65, 45], [66, 46]]);
   });
 
-  it("excludes results with invalid or absent confirmed winner positions from exact mapping", () => {
+  it("keeps pair recurrence available without positions but excludes invalid positions from exact mapping", () => {
     const result = analyzeZsa([
       group({ id: "no-positions", winningPositions: null }),
       group({ id: "wrong-positions", groupSequence: 2, winningPositions: [5, 4, 3, 2, 1] }),
     ]);
 
-    expect(result.eligibleGroupCount).toBe(0);
+    expect(result.eligibleGroupCount).toBe(1);
+    expect(result.pairs).toHaveLength(0);
     expect(result.exactMappings).toHaveLength(0);
   });
 
