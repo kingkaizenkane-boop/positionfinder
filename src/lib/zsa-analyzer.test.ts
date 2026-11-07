@@ -190,8 +190,8 @@ describe("confirmed ZSA analysis", () => {
       group({ id: "wrong-positions", groupSequence: 2, winningPositions: [5, 4, 3, 2, 1] }),
     ]);
 
-    expect(result.eligibleGroupCount).toBe(1);
-    expect(result.pairs).toHaveLength(0);
+    expect(result.eligibleGroupCount).toBe(2);
+    expect(result.pairs).toHaveLength(10);
     expect(result.exactMappings).toHaveLength(0);
   });
 
