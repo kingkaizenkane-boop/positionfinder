@@ -306,8 +306,43 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
   });
   closeSegment();
 
+  const seenDrawIds = new Set<string>();
+  const seenRecords = new Set<string>();
+  for (const record of records) {
+    const gameKey = normalizeGame(record.gameName);
+    const drawId = record.drawNumber === null ? null : `${gameKey}|${record.drawNumber}|${record.drawDate ?? ""}`;
+    const recordKey = record.numbers ? `${gameKey}|${record.numbers.join(",")}` : null;
+    if ((drawId && seenDrawIds.has(drawId)) || (recordKey && seenRecords.has(recordKey))) {
+      record.issues.push("Duplicate source record or draw ID; retained for review and not silently removed.");
+      for (const group of groups) {
+        if ([group.line1, group.line2, group.line3].some((member) => member?.id === record.id)) {
+          group.completeness = "invalid";
+          group.issues.push(`Line ${record.sourceLine}: duplicate source evidence retained.`);
+        }
+      }
+    }
+    if (drawId) seenDrawIds.add(drawId);
+    if (recordKey) seenRecords.add(recordKey);
+  }
+
   if (groups.some((group) => group.completeness === "incomplete")) warnings.push("One or more groups ended before all three records were present; later groups were not shifted across blank lines or end markers.");
   if (groups.some((group) => group.completeness === "complete")) warnings.push("Detected three-record groupings are provisional. Review and confirm the grouping boundaries before analysis.");
+  if (records.some((record) => record.issues.some((issue) => issue.startsWith("Duplicate")))) warnings.push("Duplicate source records or draw IDs were retained and flagged; review them before confirming the affected groups.");
+  const drawNumbersByGame = new Map<string, number[]>();
+  for (const record of records) {
+    if (record.drawNumber === null) continue;
+    const key = normalizeGame(record.gameName);
+    drawNumbersByGame.set(key, [...(drawNumbersByGame.get(key) ?? []), record.drawNumber]);
+  }
+  for (const [key, values] of drawNumbersByGame) {
+    const ordered = [...new Set(values)].sort((a, b) => a - b);
+    for (let index = 1; index < ordered.length; index += 1) {
+      const previous = ordered[index - 1];
+      const current = ordered[index];
+      if (previous === undefined || current === undefined || current <= previous + 1) continue;
+      warnings.push(`${key}: missing draw numbers ${Array.from({ length: current - previous - 1 }, (_, offset) => previous + offset + 1).join(", ")} between ${previous} and ${current}.`);
+    }
+  }
   return { provider: provider.trim(), rawText, records, groups, warnings };
 }
 
