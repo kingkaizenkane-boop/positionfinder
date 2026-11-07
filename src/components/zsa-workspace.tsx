@@ -371,12 +371,47 @@ export function ZsaWorkspace() {
     const prior = winnerRows.find((item) => item.group_id === group.id);
     if (
       prior?.confirmation_status === "confirmed" &&
-      (prior.winning_numbers.join(",") !== winningNumbers.join(",") ||
-        (prior.winning_positions?.join(",") ?? "") !== (rawPositions?.join(",") ?? ""))
+      prior.winning_numbers.join(",") !== winningNumbers.join(",")
     ) {
+      const { error: versionError } = await supabase.from("zsa_winning_results").insert({
+        group_id: group.id,
+        winning_numbers: winningNumbers,
+        winning_positions: rawPositions,
+        confirmation_status: "requires_review",
+        result_date: group.drawDate,
+        source_type: "manual",
+        source_text: `Correction submission; prior confirmed result ${prior.id} preserved.`,
+      });
       setStatus(
-        "A confirmed result cannot be overwritten. Keep this evidence and submit a reviewed correction as a new result version.",
+        versionError
+          ? "The correction evidence could not be retained; the prior confirmed result remains unchanged."
+          : "Correction saved as a separate review record; the prior confirmed result remains unchanged.",
       );
+      setBusy(false);
+      if (!versionError) await loadWorkspace();
+      return;
+    }
+    if (
+      prior?.confirmation_status === "confirmed" &&
+      rawPositions &&
+      (prior.winning_positions?.join(",") ?? "") !== rawPositions.join(",")
+    ) {
+      const { error: versionError } = await supabase.from("zsa_winning_results").insert({
+        group_id: group.id,
+        winning_numbers: winningNumbers,
+        winning_positions: rawPositions,
+        confirmation_status: "requires_review",
+        result_date: group.drawDate,
+        source_type: "manual",
+        source_text: `Position correction submission; prior confirmed result ${prior.id} preserved.`,
+      });
+      setStatus(
+        versionError
+          ? "The position correction could not be retained; the prior confirmed result remains unchanged."
+          : "Position correction saved as separate review evidence; the prior confirmed result remains unchanged.",
+      );
+      setBusy(false);
+      if (!versionError) await loadWorkspace();
       return;
     }
     const winnerPayload: WinningResultPayload = {
