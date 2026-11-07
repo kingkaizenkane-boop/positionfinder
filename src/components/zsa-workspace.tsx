@@ -182,7 +182,7 @@ export function ZsaWorkspace() {
     }
     setBusy(true);
     const prior = winnerRows.find((item) => item.group_id === group.id);
-    if (prior?.confirmation_status === "confirmed" && (prior.winning_numbers.join(",") !== winningNumbers.join(",") || prior.winning_positions?.join(",") !== rawPositions?.join(","))) {
+    if (prior?.confirmation_status === "confirmed" && (prior.winning_numbers.join(",") !== winningNumbers.join(",") || (prior.winning_positions?.join(",") ?? "") !== (rawPositions?.join(",") ?? ""))) {
       setStatus("A confirmed result cannot be overwritten. Keep this evidence and submit a reviewed correction as a new result version.");
       return;
     }
