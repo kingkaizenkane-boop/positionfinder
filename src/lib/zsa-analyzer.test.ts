@@ -62,6 +62,15 @@ describe("ZSA source grouping parser", () => {
     expect(parsed.groups.map((item) => item.completeness)).toEqual(["incomplete", "incomplete"]);
     expect(parsed.groups.every((item) => item.line3 === null)).toBe(true);
   });
+
+  it("flags explicitly mislabeled rows and repeated draw identities", () => {
+    const parsed = parseZsaSource(`Game A\nLine 1: 01 02 03 04 05 | 06 07 08 09 10\nLine 3: 11 12 13 14 15 | 16 17 18 19 20\nLine 3: 21 22 23 24 25 | 26 27 28 29 30\n\nGame A\n101: 01/01/2024: 01 02 03 04 05 | 06 07 08 09 10\n101: 01/01/2024: 01 02 03 04 05 | 06 07 08 09 10`, "Provider");
+
+    expect(parsed.groups[0]?.completeness).toBe("invalid");
+    expect(parsed.groups[0]?.issues.join(" ")).toContain("Declared Line 3 conflicts");
+    expect(parsed.records[4]?.issues.join(" ")).toContain("Duplicate source record or draw ID");
+    expect(parsed.warnings.some((warning) => warning.includes("Duplicate source records"))).toBe(true);
+  });
 });
 
 describe("confirmed ZSA analysis", () => {
@@ -110,6 +119,28 @@ describe("confirmed ZSA analysis", () => {
     expect(result.exactMappings.some((item) => item.sourcePosition === 1 && item.sourceNumber === 65 && item.targetPosition === 1 && item.targetNumber === 47)).toBe(true);
     expect(result.exactMappings.some((item) => item.sourcePosition === 1 && item.targetPosition === 2 && item.targetNumber === 57)).toBe(true);
     expect(result.positionCombinations.some((item) => item.sourcePositions[0] === 1 && item.sourcePositions[1] === 2 && item.targetPositions[0] === 1 && item.targetPositions[1] === 2)).toBe(true);
+  });
+
+  it("does not merge the same position mapping when source values differ", () => {
+    const differentSource = [66, 46, 64, 78, 13, 69, 22, 84, 17, 5] as ZsaNumbers;
+    const result = analyzeZsa([
+      group({ id: "first", groupSequence: 1 }),
+      group({ id: "second", groupSequence: 2, line2: differentSource }),
+    ]);
+    const combined = result.positionCombinations.filter((item) => item.sourcePositions[0] === 1 && item.sourcePositions[1] === 2 && item.targetNumbers[0] === 47 && item.targetNumbers[1] === 57);
+
+    expect(combined).toHaveLength(2);
+    expect(combined.map((item) => item.sourceNumbers)).toEqual([[65, 45], [66, 46]]);
+  });
+
+  it("excludes results with invalid or absent confirmed winner positions from exact mapping", () => {
+    const result = analyzeZsa([
+      group({ id: "no-positions", winningPositions: null }),
+      group({ id: "wrong-positions", groupSequence: 2, winningPositions: [5, 4, 3, 2, 1] }),
+    ]);
+
+    expect(result.eligibleGroupCount).toBe(0);
+    expect(result.exactMappings).toHaveLength(0);
   });
 
   it("applies game, provider, date, occurrence, and distinct-game filters", () => {
