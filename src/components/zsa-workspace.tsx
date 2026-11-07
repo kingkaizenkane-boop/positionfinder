@@ -20,6 +20,7 @@ type OccurrenceRow = { id: string; game_id: string | null; import_batch_id: stri
 type WinnerRow = { id: string; group_id: string; winning_numbers: number[]; winning_positions: number[] | null; confirmation_status: string; result_date: string | null };
 type ValidationRow = { id: string; case_name: string; game_name: string; provider: string; line2_values: number[]; line3_values: number[] | null; winning_numbers: number[]; winning_positions: number[] | null; validation_status: string; analysis_snapshot: Record<string, unknown> };
 type SavedRun = { id: string; name: string; dataset_version: string; created_at: string; result_summary: Record<string, unknown>; dataset_snapshot: unknown };
+type WinningResultPayload = { group_id: string; winning_numbers: number[]; winning_positions: number[] | null; confirmation_status: string; result_date: string | null; source_type: string; source_text: string; confirmed_at: string };
 
 const parseList = (value: string, expected: number) => {
   const numbers = value.trim().split(/[\s,|;]+/).filter(Boolean).map(Number);
@@ -71,7 +72,7 @@ export function ZsaWorkspace() {
       const winner = winningByGroup.get(row.id);
       return {
         id: row.id,
-        gameId: row.game_id ?? "unlinked-game",
+        gameId: row.game_id ?? `unlinked-${row.id}`,
         gameName: row.game_name,
         provider: row.provider,
         groupSequence: row.group_sequence,
@@ -141,45 +142,47 @@ export function ZsaWorkspace() {
       if (found) gameIds.set(normalized(gameName), found.id);
       else {
         const created = await supabase.from("games").insert({ game_name: gameName, provider: preview.provider }).select("id").single();
-        if (created.error || !created.data) { setStatus(`Could not prepare the game record for ${gameName}; source text remains in the audit history.`); setBusy(false); return; }
+        if (created.error || !created.data) {
+          const retry = await supabase.from("games").select("id, game_name, provider");
+          const concurrentWinner = (retry.data ?? []).find((game) => normalized(game.game_name) === normalized(gameName) && normalized(game.provider) === normalized(preview.provider));
+          if (!concurrentWinner) { setStatus(`Could not prepare the game record for ${gameName}; the atomic source save was not started.`); setBusy(false); return; }
+          gameIds.set(normalized(gameName), concurrentWinner.id);
+        } else {
         gameIds.set(normalized(gameName), created.data.id);
+        }
       }
     }
 
-    const occurrenceRows = preview.records.map((record) => ({
-      import_batch_id: batch.data.id,
-      game_id: gameIds.get(normalized(record.gameName)) ?? null,
-      provider: preview.provider,
-      game_name: record.gameName,
-      source_order: record.sourceOrder,
-      source_line_start: record.sourceLine,
-      source_line_end: record.sourceLine,
-      source_text: record.rawText,
-      draw_number: record.drawNumber,
-      draw_date: record.drawDate,
-      line_role: null as number | null,
-      position_values: record.numbers,
-      record_status: record.issues.length > 0 ? "invalid" : "valid",
+    const occurrencesPayload = preview.records.map((record) => ({
+      sourceOrder: record.sourceOrder,
+      sourceLine: record.sourceLine,
+      rawText: record.rawText,
+      gameName: record.gameName,
+      drawNumber: record.drawNumber,
+      drawDate: record.drawDate,
+      numbers: record.numbers,
+      lineRole: record.declaredRole,
+      recordStatus: record.issues.some((issue) => issue.startsWith("Duplicate")) ? "duplicate" : record.issues.length > 0 ? "invalid" : "valid",
       issues: record.issues,
     }));
-    const insertedOccurrences = occurrenceRows.length ? await supabase.from("zsa_source_occurrences").insert(occurrenceRows).select("id, source_line_start") : { data: [], error: null };
-    if (insertedOccurrences.error) { setStatus("Source lines could not be saved. The retained import batch is available for recovery."); setBusy(false); return; }
-    const occurrenceIdByLine = new Map((insertedOccurrences.data ?? []).map((row) => [row.source_line_start, row.id]));
-    const groupRows = preview.groups.map((group) => ({
-      game_id: gameIds.get(normalized(group.gameName)) ?? null,
-      import_batch_id: batch.data.id,
-      group_sequence: group.sequence,
-      game_name: group.gameName,
-      provider: preview.provider,
-      line1_occurrence_id: group.line1 ? occurrenceIdByLine.get(group.line1.sourceLine) ?? null : null,
-      line2_occurrence_id: group.line2 ? occurrenceIdByLine.get(group.line2.sourceLine) ?? null : null,
-      line3_occurrence_id: group.line3 ? occurrenceIdByLine.get(group.line3.sourceLine) ?? null : null,
-      completeness_status: group.completeness,
-      grouping_confirmed: true,
-      draw_date: group.line3?.drawDate ?? group.line2?.drawDate ?? null,
+    const groupsPayload = preview.groups.map((group) => ({
+      sequence: group.sequence,
+      gameName: group.gameName,
+      completeness: group.completeness,
+      line1SourceLine: group.line1?.sourceLine ?? null,
+      line2SourceLine: group.line2?.sourceLine ?? null,
+      line3SourceLine: group.line3?.sourceLine ?? null,
+      drawDate: group.line3?.drawDate ?? group.line2?.drawDate ?? null,
     }));
-    const insertedGroups = await supabase.from("zsa_groups").insert(groupRows);
-    if (insertedGroups.error) { setStatus("The source lines were retained, but group records could not be saved. Please retry after reviewing the import history."); setBusy(false); return; }
+    const { data: atomicSaveId, error: atomicSaveError } = await supabase.rpc("save_zsa_source_import", {
+      p_batch_id: batch.data.id,
+      p_provider: preview.provider,
+      p_source_name: "ZSA source import",
+      p_raw_text: preview.rawText,
+      p_occurrences: occurrencesPayload,
+      p_groups: groupsPayload,
+    });
+    if (atomicSaveError || !atomicSaveId) { setStatus("The source group could not be saved atomically; no partial source rows were written."); setBusy(false); return; }
     setSourceText("");
     setPreview(null);
     setStatus(`Saved ${preview.records.length} source records and ${preview.groups.length} confirmed group boundaries. Invalid and incomplete records remain reviewable and are excluded from analysis.`);
@@ -197,7 +200,12 @@ export function ZsaWorkspace() {
       setStatus("Winner positions must be five distinct positions from 1–10 and match the five winners in the same order."); return;
     }
     setBusy(true);
-    const result = await supabase.from("zsa_winning_results").upsert({
+    const prior = winnerRows.find((item) => item.group_id === group.id);
+    if (prior?.confirmation_status === "confirmed" && (prior.winning_numbers.join(",") !== winningNumbers.join(",") || prior.winning_positions?.join(",") !== rawPositions?.join(","))) {
+      setStatus("A confirmed result cannot be overwritten. Keep this evidence and submit a reviewed correction as a new result version.");
+      return;
+    }
+    const winnerPayload: WinningResultPayload = {
       group_id: group.id,
       winning_numbers: winningNumbers,
       winning_positions: rawPositions,
@@ -206,7 +214,8 @@ export function ZsaWorkspace() {
       source_type: "manual",
       source_text: "Explicit user confirmation in ZSA workspace",
       confirmed_at: new Date().toISOString(),
-    }, { onConflict: "group_id" });
+    };
+    const result = prior ? await supabase.from("zsa_winning_results").update(winnerPayload).eq("id", prior.id) : await supabase.from("zsa_winning_results").insert(winnerPayload);
     if (result.error) setStatus("The confirmed result could not be saved.");
     else {
       setWinnersInput(""); setWinnerPositionsInput("");
