@@ -8,6 +8,7 @@ export type ZsaSourceRecord = {
   gameName: string;
   drawNumber: number | null;
   drawDate: string | null;
+  declaredRole: 1 | 2 | 3 | null;
   numbers: ZsaNumbers | null;
   issues: string[];
 };
@@ -196,10 +197,15 @@ const parseCandidateValues = (value: string): { values: number[] | null; issue?:
 
 function makeRecord(line: string, sourceLine: number, sourceOrder: number, gameName: string): ZsaSourceRecord {
   let body = line.trim();
+  let declaredRole: 1 | 2 | 3 | null = null;
   let drawNumber: number | null = null;
   let drawDate: string | null = null;
-  const labeled = body.match(/^\s*(?:line\s*[123]|l[123])\s*[:=-]\s*(.*)$/i);
-  if (labeled?.[1]) body = labeled[1];
+  const labeled = body.match(/^\s*(?:line\s*([123])|l([123]))\s*[:=-]\s*(.*)$/i);
+  if (labeled?.[1] || labeled?.[2]) {
+    const roleValue = Number(labeled[1] ?? labeled[2]);
+    declaredRole = roleValue === 1 || roleValue === 2 || roleValue === 3 ? roleValue : null;
+    body = labeled[3] ?? "";
+  }
   const dated = body.match(/^\s*(\d+)\s*[:\-]\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\s*[:\-]?\s*(.*)$/);
   if (dated) {
     drawNumber = Number(dated[1]);
@@ -219,6 +225,7 @@ function makeRecord(line: string, sourceLine: number, sourceOrder: number, gameN
     gameName,
     drawNumber,
     drawDate,
+    declaredRole,
     numbers: values?.length === 10 ? values as ZsaNumbers : null,
     issues,
   };
@@ -248,11 +255,14 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
       const line1 = chunk[0] ?? null;
       const line2 = chunk[1] ?? null;
       const line3 = chunk[2] ?? null;
-      const issues = chunk.flatMap((record) => record.issues.map((issue) => `Line ${record.sourceLine}: ${issue}`));
+      const issues = chunk.flatMap((record, index) => {
+        const expectedRole = (index + 1) as 1 | 2 | 3;
+        const roleIssue = record.declaredRole !== null && record.declaredRole !== expectedRole ? [`Line ${record.sourceLine}: Declared Line ${record.declaredRole} conflicts with its position in this group.`] : [];
+        return [...record.issues.map((issue) => `Line ${record.sourceLine}: ${issue}`), ...roleIssue];
+      });
       const complete = chunk.length === 3;
       if (!complete) issues.push(`Incomplete three-line group: found ${chunk.length} of 3 records before a source boundary.`);
-      const invalid = chunk.some((record) => record.numbers === null || record.issues.length > 0);
-      if (chunk.length > 3) warnings.push(`A source section for ${gameName} contains more than three records; records were partitioned in source order and require grouping confirmation.`);
+      const invalid = chunk.some((record) => record.numbers === null || record.issues.length > 0) || issues.some((issue) => issue.includes("Declared Line"));
       groups.push({
         id: `zsa-group-${gameKey.replace(/[^a-z0-9]+/g, "-")}-${sequence}`,
         sequence,
@@ -266,6 +276,7 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
       });
     }
     sequenceByGame.set(gameKey, sequence);
+    if (currentSegment.length > 3) warnings.push(`A source section for ${gameName} contains ${currentSegment.length} records; records were partitioned in source order and require grouping confirmation.`);
     currentSegment = [];
   };
 
@@ -303,9 +314,15 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
 function isConfirmedComplete(group: ZsaConfirmedGroup): group is ZsaConfirmedGroup & { line1: ZsaNumbers; line2: ZsaNumbers; line3: ZsaNumbers; winningNumbers: number[] } {
   if (!group.groupingConfirmed || group.completeness !== "complete" || !group.winnerConfirmed) return false;
   if (!group.line1 || !group.line2 || !group.line3 || !group.winningNumbers || group.winningNumbers.length !== 5) return false;
-  if (group.line1.some((value) => value < 1 || value > 90) || group.line2.some((value) => value < 1 || value > 90) || group.line3.some((value) => value < 1 || value > 90)) return false;
+  const candidateLines = [group.line1, group.line2, group.line3];
+  if (candidateLines.some((line) => line.length !== 10 || line.some((value) => !Number.isInteger(value) || value < 1 || value > 90))) return false;
   if (group.winningNumbers.some((value) => !Number.isInteger(value) || value < 1 || value > 90) || new Set(group.winningNumbers).size !== 5) return false;
-  return group.winningNumbers.every((value) => group.line3.includes(value));
+  if (!group.winningNumbers.every((value) => group.line3.includes(value))) return false;
+  if (group.winningPositions) {
+    if (group.winningPositions.length !== 5 || group.winningPositions.some((position) => !Number.isInteger(position) || position < 1 || position > 10) || new Set(group.winningPositions).size !== 5) return false;
+    if (!group.winningPositions.every((position, index) => group.line3?.[position - 1] === group.winningNumbers?.[index])) return false;
+  }
+  return true;
 }
 
 function filterGroup(group: ZsaConfirmedGroup, filters: ZsaFilters) {
@@ -412,7 +429,7 @@ export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { 
           if (sourceNumber === undefined) continue;
           const key = `${sourcePosition}|${sourceNumber}|${targetPosition}|${winner}`;
           const entry = mappingEvidence.get(key) ?? { sourcePosition, sourceNumber, targetPosition, targetNumber: winner, evidence: [], groupIds: new Set<string>(), gameIds: new Set<string>() };
-          entry.evidence.push(evidence);
+          if (!entry.groupIds.has(evidence.groupId)) entry.evidence.push(evidence);
           entry.groupIds.add(evidence.groupId);
           entry.gameIds.add(evidence.gameId);
           mappingEvidence.set(key, entry);
@@ -436,7 +453,7 @@ export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { 
                 { positions: [firstTarget, secondTarget] as [number, number], numbers: [firstTargetNumber, secondTargetNumber] as [number, number] },
                 { positions: [secondTarget, firstTarget] as [number, number], numbers: [secondTargetNumber, firstTargetNumber] as [number, number] },
               ]) {
-                const key = `${firstPosition}|${secondPosition}|${firstValue}|${secondValue}|${assignment.positions[0]}|${assignment.positions[1]}|${assignment.numbers[0]}|${assignment.numbers[1]}`;
+                const key = `${pair.pair.join("-")}|${firstPosition}|${secondPosition}|${firstValue}|${secondValue}|${assignment.positions[0]}|${assignment.positions[1]}|${assignment.numbers[0]}|${assignment.numbers[1]}`;
                 const entry = combinationEvidence.get(key) ?? {
                   sourcePositions: [firstPosition, secondPosition],
                   sourceNumbers: [firstValue, secondValue],
@@ -446,7 +463,7 @@ export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { 
                   groupIds: new Set<string>(),
                   gameIds: new Set<string>(),
                 };
-                entry.evidence.push(evidence);
+                if (!entry.groupIds.has(evidence.groupId)) entry.evidence.push(evidence);
                 entry.groupIds.add(evidence.groupId);
                 entry.gameIds.add(evidence.gameId);
                 combinationEvidence.set(key, entry);
