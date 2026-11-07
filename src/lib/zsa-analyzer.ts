@@ -358,8 +358,6 @@ function isConfirmedComplete(group: ZsaConfirmedGroup): group is ZsaConfirmedGro
   if (group.winningPositions) {
     if (group.winningPositions.length !== 5 || group.winningPositions.some((position) => !Number.isInteger(position) || position < 1 || position > 10) || new Set(group.winningPositions).size !== 5) return false;
     if (!group.winningPositions.every((position, index) => line3[position - 1] === group.winningNumbers?.[index])) return false;
-  } else {
-    return false;
   }
   return true;
 }
