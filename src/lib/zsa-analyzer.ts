@@ -458,22 +458,6 @@ function isConfirmedComplete(
   )
     return false;
   if (!group.winningNumbers.every((value) => line3.includes(value))) return false;
-  if (group.winningPositions) {
-    if (
-      group.winningPositions.length !== 5 ||
-      group.winningPositions.some(
-        (position) => !Number.isInteger(position) || position < 1 || position > 10,
-      ) ||
-      new Set(group.winningPositions).size !== 5
-    )
-      return false;
-    if (
-      !group.winningPositions.every(
-        (position, index) => line3[position - 1] === group.winningNumbers?.[index],
-      )
-    )
-      return false;
-  }
   return true;
 }
 
@@ -635,6 +619,10 @@ export function analyzeZsa(
       if (
         !targetPositions ||
         targetPositions.length !== 2 ||
+        targetPositions.some(
+          (position) => !Number.isInteger(position) || position < 1 || position > 10,
+        ) ||
+        new Set(targetPositions).size !== 2 ||
         !evidence.winningNumbers.every(
           (number, index) =>
             evidence.line3[
