@@ -320,7 +320,7 @@ const pairKey = (a: number, b: number) => [a, b].sort((left, right) => left - ri
 const increment = (record: Record<string, number>, key: string) => { record[key] = (record[key] ?? 0) + 1; };
 
 export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { minimumOccurrences: 2, minimumDistinctGames: 1 }): ZsaAnalysisResult {
-  const eligible = groups.filter((group) => isConfirmedComplete(group) && filterGroup(group, filters));
+  const eligible = [...new Map(groups.filter((group) => isConfirmedComplete(group) && filterGroup(group, filters)).map((group) => [group.id, group])).values()];
   const pairEvidence = new Map<string, WinningPairEvidence[]>();
   const pairNumbers = new Map<string, [number, number]>();
 
@@ -436,7 +436,7 @@ export function analyzeZsa(groups: ZsaConfirmedGroup[], filters: ZsaFilters = { 
                 { positions: [firstTarget, secondTarget] as [number, number], numbers: [firstTargetNumber, secondTargetNumber] as [number, number] },
                 { positions: [secondTarget, firstTarget] as [number, number], numbers: [secondTargetNumber, firstTargetNumber] as [number, number] },
               ]) {
-                const key = `${firstPosition}|${secondPosition}|${assignment.positions[0]}|${assignment.positions[1]}|${assignment.numbers[0]}|${assignment.numbers[1]}`;
+                const key = `${firstPosition}|${secondPosition}|${firstValue}|${secondValue}|${assignment.positions[0]}|${assignment.positions[1]}|${assignment.numbers[0]}|${assignment.numbers[1]}`;
                 const entry = combinationEvidence.get(key) ?? {
                   sourcePositions: [firstPosition, secondPosition],
                   sourceNumbers: [firstValue, secondValue],

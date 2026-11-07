@@ -50,7 +50,7 @@ describe("ZSA source grouping parser", () => {
 
     expect(parsed.records).toHaveLength(3);
     expect(parsed.records[0]?.numbers).toEqual(parsed.records[1]?.numbers);
-    expect(parsed.records[2]?.numbers).toBeNull();
+    expect(parsed.records[2]?.numbers).toEqual([0, 2, 3, 4, 5, 6, 7, 8, 9, 97]);
     expect(parsed.records[2]?.issues.join(" ")).toContain("outside the permitted range");
     expect(parsed.groups[0]?.completeness).toBe("invalid");
     expect(parsed.records[0]?.rawText).toContain("0102030405");
@@ -66,7 +66,7 @@ describe("ZSA source grouping parser", () => {
 
 describe("confirmed ZSA analysis", () => {
   it("generates ten unique unordered pairs from five confirmed winners", () => {
-    const result = analyzeZsa([group()]);
+    const result = analyzeZsa([group()], { minimumOccurrences: 1, minimumDistinctGames: 1 });
     expect(result.totalPairObservations).toBe(10);
     expect(result.pairs).toHaveLength(10);
     expect(result.pairs.map((item) => item.key)).toContain("47-57");
