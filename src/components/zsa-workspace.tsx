@@ -123,17 +123,6 @@ export function ZsaWorkspace() {
     }
     setBusy(true);
     setStatus("Saving source text and group evidence…");
-    const batch = await supabase.from("import_batches").insert({
-      provider: preview.provider,
-      source_name: "ZSA source import",
-      raw_text: preview.rawText,
-      games_detected: new Set(preview.groups.map((group) => normalized(group.gameName))).size,
-      draws_detected: preview.records.length,
-      draws_rejected: preview.records.filter((record) => record.issues.length > 0).length,
-      status: "completed",
-    }).select("id").single();
-    if (batch.error || !batch.data) { setStatus("The source audit could not be saved."); setBusy(false); return; }
-
     const gameIds = new Map<string, string>();
     const gameNames = [...new Set(preview.groups.map((group) => group.gameName))];
     for (const gameName of gameNames) {
@@ -153,6 +142,12 @@ export function ZsaWorkspace() {
       }
     }
 
+    const roleByLine = new Map<number, number>();
+    for (const group of preview.groups) {
+      if (group.line1) roleByLine.set(group.line1.sourceLine, 1);
+      if (group.line2) roleByLine.set(group.line2.sourceLine, 2);
+      if (group.line3) roleByLine.set(group.line3.sourceLine, 3);
+    }
     const occurrencesPayload = preview.records.map((record) => ({
       sourceOrder: record.sourceOrder,
       sourceLine: record.sourceLine,
@@ -161,7 +156,7 @@ export function ZsaWorkspace() {
       drawNumber: record.drawNumber,
       drawDate: record.drawDate,
       numbers: record.numbers,
-      lineRole: record.declaredRole,
+      lineRole: record.declaredRole ?? roleByLine.get(record.sourceLine) ?? null,
       recordStatus: record.issues.some((issue) => issue.startsWith("Duplicate")) ? "duplicate" : record.issues.length > 0 ? "invalid" : "valid",
       issues: record.issues,
     }));
@@ -174,8 +169,9 @@ export function ZsaWorkspace() {
       line3SourceLine: group.line3?.sourceLine ?? null,
       drawDate: group.line3?.drawDate ?? group.line2?.drawDate ?? null,
     }));
+    const batchId = crypto.randomUUID();
     const { data: atomicSaveId, error: atomicSaveError } = await supabase.rpc("save_zsa_source_import", {
-      p_batch_id: batch.data.id,
+      p_batch_id: batchId,
       p_provider: preview.provider,
       p_source_name: "ZSA source import",
       p_raw_text: preview.rawText,
