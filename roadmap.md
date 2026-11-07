@@ -10,4 +10,4 @@
 - [x] Add confirmed batched imports, audit history, provider selection, and reuse of existing games and historical draws
 - [x] Add repeated target-pair analysis with stable one- or two-source positional paths
 - [x] Add Line 3 total frequency count of every target number, separate from matched-pair frequency
-- [ ] Enable account-free shared testing access for reads, imports, saves, edits, and deletes (Cloud is paused; anonymous database policies remain to be applied)
+- [x] Enable and verify account-free shared testing access for reads, imports, saves, edits, and deletes (shared policies remain active until explicitly reverted)
