@@ -283,6 +283,331 @@ export type Database = {
           },
         ]
       }
+      zsa_analysis_runs: {
+        Row: {
+          created_at: string
+          dataset_snapshot: Json
+          dataset_version: string
+          engine_version: string
+          filters: Json
+          id: string
+          name: string
+          result_summary: Json
+          threshold_settings: Json
+        }
+        Insert: {
+          created_at?: string
+          dataset_snapshot: Json
+          dataset_version: string
+          engine_version?: string
+          filters?: Json
+          id?: string
+          name: string
+          result_summary?: Json
+          threshold_settings?: Json
+        }
+        Update: {
+          created_at?: string
+          dataset_snapshot?: Json
+          dataset_version?: string
+          engine_version?: string
+          filters?: Json
+          id?: string
+          name?: string
+          result_summary?: Json
+          threshold_settings?: Json
+        }
+        Relationships: []
+      }
+      zsa_groups: {
+        Row: {
+          completeness_status: string
+          created_at: string
+          draw_date: string | null
+          game_id: string | null
+          game_name: string
+          group_sequence: number
+          grouping_confirmed: boolean
+          id: string
+          import_batch_id: string | null
+          line1_occurrence_id: string | null
+          line2_occurrence_id: string | null
+          line3_occurrence_id: string | null
+          provider: string
+        }
+        Insert: {
+          completeness_status?: string
+          created_at?: string
+          draw_date?: string | null
+          game_id?: string | null
+          game_name: string
+          group_sequence: number
+          grouping_confirmed?: boolean
+          id?: string
+          import_batch_id?: string | null
+          line1_occurrence_id?: string | null
+          line2_occurrence_id?: string | null
+          line3_occurrence_id?: string | null
+          provider: string
+        }
+        Update: {
+          completeness_status?: string
+          created_at?: string
+          draw_date?: string | null
+          game_id?: string | null
+          game_name?: string
+          group_sequence?: number
+          grouping_confirmed?: boolean
+          id?: string
+          import_batch_id?: string | null
+          line1_occurrence_id?: string | null
+          line2_occurrence_id?: string | null
+          line3_occurrence_id?: string | null
+          provider?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zsa_groups_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_groups_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_groups_line1_occurrence_id_fkey"
+            columns: ["line1_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_source_occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_groups_line2_occurrence_id_fkey"
+            columns: ["line2_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_source_occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_groups_line3_occurrence_id_fkey"
+            columns: ["line3_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_source_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zsa_source_occurrences: {
+        Row: {
+          created_at: string
+          draw_date: string | null
+          draw_number: number | null
+          game_id: string | null
+          game_name: string
+          id: string
+          import_batch_id: string | null
+          issues: Json
+          line_role: number | null
+          position_values: number[] | null
+          provider: string
+          record_status: string
+          source_line_end: number
+          source_line_start: number
+          source_order: number
+          source_text: string
+        }
+        Insert: {
+          created_at?: string
+          draw_date?: string | null
+          draw_number?: number | null
+          game_id?: string | null
+          game_name: string
+          id?: string
+          import_batch_id?: string | null
+          issues?: Json
+          line_role?: number | null
+          position_values?: number[] | null
+          provider: string
+          record_status?: string
+          source_line_end: number
+          source_line_start: number
+          source_order: number
+          source_text: string
+        }
+        Update: {
+          created_at?: string
+          draw_date?: string | null
+          draw_number?: number | null
+          game_id?: string | null
+          game_name?: string
+          id?: string
+          import_batch_id?: string | null
+          issues?: Json
+          line_role?: number | null
+          position_values?: number[] | null
+          provider?: string
+          record_status?: string
+          source_line_end?: number
+          source_line_start?: number
+          source_order?: number
+          source_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zsa_source_occurrences_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_source_occurrences_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zsa_validation_cases: {
+        Row: {
+          analysis_run_id: string | null
+          analysis_snapshot: Json
+          case_name: string
+          created_at: string
+          game_id: string | null
+          game_name: string
+          id: string
+          line2_occurrence_id: string | null
+          line2_values: number[]
+          line3_occurrence_id: string | null
+          line3_values: number[] | null
+          provider: string
+          result_date: string | null
+          validation_status: string
+          winning_numbers: number[]
+          winning_positions: number[] | null
+        }
+        Insert: {
+          analysis_run_id?: string | null
+          analysis_snapshot: Json
+          case_name: string
+          created_at?: string
+          game_id?: string | null
+          game_name: string
+          id?: string
+          line2_occurrence_id?: string | null
+          line2_values: number[]
+          line3_occurrence_id?: string | null
+          line3_values?: number[] | null
+          provider: string
+          result_date?: string | null
+          validation_status?: string
+          winning_numbers: number[]
+          winning_positions?: number[] | null
+        }
+        Update: {
+          analysis_run_id?: string | null
+          analysis_snapshot?: Json
+          case_name?: string
+          created_at?: string
+          game_id?: string | null
+          game_name?: string
+          id?: string
+          line2_occurrence_id?: string | null
+          line2_values?: number[]
+          line3_occurrence_id?: string | null
+          line3_values?: number[] | null
+          provider?: string
+          result_date?: string | null
+          validation_status?: string
+          winning_numbers?: number[]
+          winning_positions?: number[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zsa_validation_cases_analysis_run_id_fkey"
+            columns: ["analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_analysis_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_validation_cases_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_validation_cases_line2_occurrence_id_fkey"
+            columns: ["line2_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_source_occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_validation_cases_line3_occurrence_id_fkey"
+            columns: ["line3_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_source_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zsa_winning_results: {
+        Row: {
+          confirmation_status: string
+          confirmed_at: string | null
+          created_at: string
+          group_id: string
+          id: string
+          result_date: string | null
+          source_text: string | null
+          source_type: string
+          winning_numbers: number[]
+          winning_positions: number[] | null
+        }
+        Insert: {
+          confirmation_status?: string
+          confirmed_at?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          result_date?: string | null
+          source_text?: string | null
+          source_type?: string
+          winning_numbers: number[]
+          winning_positions?: number[] | null
+        }
+        Update: {
+          confirmation_status?: string
+          confirmed_at?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          result_date?: string | null
+          source_text?: string | null
+          source_type?: string
+          winning_numbers?: number[]
+          winning_positions?: number[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zsa_winning_results_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: true
+            referencedRelation: "zsa_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
