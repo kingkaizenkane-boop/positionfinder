@@ -542,10 +542,6 @@ export function ZsaWorkspace() {
       setStatus("This evaluation is frozen. Create a new validation case to record another draw.");
       return;
     }
-    if (caseRow.validation_status === "evaluated") {
-      setStatus("This evaluation is frozen. Create a new validation case to record another draw.");
-      return;
-    }
     const values = caseLine3.trim() ? parseList(caseLine3, 10) : null;
     const positions = casePositions.trim() ? parseList(casePositions, 5) : null;
     if (caseLine3.trim() && !values) {
