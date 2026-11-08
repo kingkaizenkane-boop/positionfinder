@@ -43,6 +43,7 @@ import {
 type WorkspaceView =
   | "overview"
   | "import"
+  | "history"
   | "pairs"
   | "positions"
   | "mappings"
@@ -163,6 +164,8 @@ export function ZsaWorkspace() {
   const [preview, setPreview] = useState<ZsaParseResult | null>(null);
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
   const [groups, setGroups] = useState<ZsaConfirmedGroup[]>([]);
+  const [sourceOccurrences, setSourceOccurrences] = useState<OccurrenceRow[]>([]);
+  const [groupRecords, setGroupRecords] = useState<GroupRow[]>([]);
   const [winnerRows, setWinnerRows] = useState<WinnerRow[]>([]);
   const [winnerRevisionRows, setWinnerRevisionRows] = useState<WinnerRevisionRow[]>([]);
   const [savedBatches, setSavedBatches] = useState<SavedBatch[]>([]);
@@ -228,6 +231,7 @@ export function ZsaWorkspace() {
       );
     else setLoadError("");
     const occurrences = (occurrencesResult.data ?? []) as OccurrenceRow[];
+    const sourceGroupRows = (groupsResult.data ?? []) as GroupRow[];
     const occurrenceById = new Map(occurrences.map((row) => [row.id, row]));
     const winningRows = (winnersResult.data ?? []) as WinnerRow[];
     const winningByGroup = new Map(
@@ -235,7 +239,7 @@ export function ZsaWorkspace() {
         .filter((item) => item.confirmation_status === "confirmed")
         .map((item) => [item.group_id, item]),
     );
-    const mappedGroups = ((groupsResult.data ?? []) as GroupRow[]).map((row) => {
+    const mappedGroups = sourceGroupRows.map((row) => {
       const line1 = row.line1_occurrence_id
         ? occurrenceById.get(row.line1_occurrence_id)
         : undefined;
@@ -277,6 +281,8 @@ export function ZsaWorkspace() {
       } satisfies ZsaConfirmedGroup;
     });
     setGroups(mappedGroups);
+    setSourceOccurrences(occurrences);
+    setGroupRecords(sourceGroupRows);
     setWinnerRows(winningRows);
     setWinnerRevisionRows((revisionsResult.data ?? []) as WinnerRevisionRow[]);
     setSavedBatches((batchesResult.data ?? []) as SavedBatch[]);
@@ -607,6 +613,7 @@ export function ZsaWorkspace() {
   const nav: Array<{ key: WorkspaceView; label: string; icon: typeof Activity }> = [
     { key: "overview", label: "Overview", icon: Activity },
     { key: "import", label: "Import & data quality", icon: Upload },
+    { key: "history", label: "Source history", icon: FileClock },
     { key: "pairs", label: "Pair recurrence", icon: Database },
     { key: "positions", label: "Position & number analysis", icon: Filter },
     { key: "mappings", label: "Exact mapping", icon: ArrowRight },
@@ -725,6 +732,9 @@ export function ZsaWorkspace() {
               saveWinners={() => void saveWinners()}
               revisions={winnerRevisionRows}
             />
+          )}
+          {activeView === "history" && (
+            <SourceHistoryView batches={savedBatches} groups={groupRecords} occurrences={sourceOccurrences} />
           )}
           {activeView === "pairs" && (
             <PairView
