@@ -390,7 +390,8 @@ export function ZsaWorkspace() {
       line2SourceLine: group.line2?.sourceLine ?? null,
       line3SourceLine: group.line3?.sourceLine ?? null,
       drawDate: group.line3?.drawDate ?? group.line2?.drawDate ?? null,
-      ingestWinners: ingestWinners && group.completeness === "complete" && Boolean(group.line3?.pipeWinners),
+      ingestWinners:
+        ingestWinners && group.completeness === "complete" && Boolean(group.line3?.pipeWinners),
     }));
     const batchId = crypto.randomUUID();
     const { data: atomicSaveId, error: atomicSaveError } = await supabase.rpc(
@@ -893,7 +894,10 @@ function Overview({
   const metrics = [
     ["Source groups", groups.length],
     ["Confirmed results", analysis.confirmedResultCount],
-    ["Qualified Line 3 numbers", analysis.targetNumberFrequency.filter((item) => item.qualified).length],
+    [
+      "Qualified Line 3 numbers",
+      analysis.targetNumberFrequency.filter((item) => item.qualified).length,
+    ],
     ["Cross-game pairs", analysis.pairs.filter((item) => item.crossGame).length],
   ];
   return (
@@ -910,9 +914,38 @@ function Overview({
       </div>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Line 3 number frequency</h2>
-        <div className="overflow-x-auto border border-border"><table className="w-full text-left text-sm"><thead className="bg-muted"><tr>{["Number", "Total", "Groups with 2+", "Candidate"].map((label) => <th key={label} className="px-3 py-2">{label}</th>)}</tr></thead><tbody>
-          {analysis.targetNumberFrequency.map((item) => <tr key={item.number} className="border-t border-border"><td className="px-3 py-2 font-mono"><details><summary className="cursor-pointer">{formatZsaNumber(item.number)}</summary>{item.byGame.map((entry) => <div key={entry.gameId} className="py-1 text-xs">{entry.gameName}: ×{entry.occurrences}</div>)}</details></td><td className="px-3 py-2">{item.occurrences}</td><td className="px-3 py-2">{item.recurringGameGroups}</td><td className="px-3 py-2">{item.qualified ? "Qualified" : "Excluded"}</td></tr>)}
-        </tbody></table></div>
+        <div className="overflow-x-auto border border-border">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted">
+              <tr>
+                {["Number", "Total", "Groups with 2+", "Candidate"].map((label) => (
+                  <th key={label} className="px-3 py-2">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {analysis.targetNumberFrequency.map((item) => (
+                <tr key={item.number} className="border-t border-border">
+                  <td className="px-3 py-2 font-mono">
+                    <details>
+                      <summary className="cursor-pointer">{formatZsaNumber(item.number)}</summary>
+                      {item.byGame.map((entry) => (
+                        <div key={entry.gameId} className="py-1 text-xs">
+                          {entry.gameName}: ×{entry.occurrences}
+                        </div>
+                      ))}
+                    </details>
+                  </td>
+                  <td className="px-3 py-2">{item.occurrences}</td>
+                  <td className="px-3 py-2">{item.recurringGameGroups}</td>
+                  <td className="px-3 py-2">{item.qualified ? "Qualified" : "Excluded"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="space-y-4">
@@ -1076,79 +1109,127 @@ function ImportView(props: {
               </div>
             ))}
             <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={props.ingestWinners} onCheckedChange={(value) => props.setIngestWinners(value === true)} />
+              <Checkbox
+                checked={props.ingestWinners}
+                onCheckedChange={(value) => props.setIngestWinners(value === true)}
+              />
               Confirm pipe-format Line 3 winners (P1–P5) with this import
             </label>
-            <Button variant="outline" onClick={() => props.setConfirmations(Object.fromEntries(props.preview?.groups.map((group) => [group.id, group.completeness === "complete"]) ?? []))}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                props.setConfirmations(
+                  Object.fromEntries(
+                    props.preview?.groups.map((group) => [
+                      group.id,
+                      group.completeness === "complete",
+                    ]) ?? [],
+                  ),
+                )
+              }
+            >
               <Check className="size-4" /> Confirm all valid sets
             </Button>
             {gameSections.map((gameName) => {
-              const sets = props.preview?.groups.filter((group) => group.gameName === gameName) ?? [];
+              const sets =
+                props.preview?.groups.filter((group) => group.gameName === gameName) ?? [];
               const validSets = sets.filter((group) => group.completeness === "complete");
-              return <div key={gameName} className="border border-border p-4 space-y-3">
-                <label className="flex items-center gap-3 font-semibold">
-                  <Checkbox aria-label={`Confirm ${gameName}`} checked={validSets.length > 0 && validSets.every((group) => props.confirmations[group.id])} disabled={!validSets.length} onCheckedChange={(value) => props.setConfirmations({ ...props.confirmations, ...Object.fromEntries(validSets.map((group) => [group.id, value === true])) })} />
-                  {gameName} · {sets.length} sets · {sets.length - validSets.length} exceptions
-                </label>
-                <details><summary className="cursor-pointer text-sm text-muted-foreground">Inspect game records</summary><div className="mt-3 space-y-3">
-                {sets.map((group) => (
-              <div key={group.id} className="border border-border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <div className="font-semibold">
-                      {group.gameName} · Group {group.sequence}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {group.completeness} · source lines {group.line1?.sourceLine ?? "—"},{" "}
-                      {group.line2?.sourceLine ?? "—"}, {group.line3?.sourceLine ?? "—"}
-                    </div>
-                  </div>
-                  <Badge variant={group.completeness === "complete" ? "outline" : "destructive"}>
-                    {group.completeness}
-                  </Badge>
-                </div>
-                <div className="mt-4 grid gap-2">
-                  {[group.line1, group.line2, group.line3].map((record, index) => (
-                    <div
-                      key={record?.id ?? `missing-${index}`}
-                      className="grid gap-2 border-t border-border/60 pt-2 text-xs sm:grid-cols-[80px_1fr]"
-                    >
-                      <span className="font-semibold text-primary">
-                        Line {index + 1}
-                        {record ? ` · ${record.drawNumber ?? "no draw ID"}` : " · missing"}
-                      </span>
-                      <span className="font-mono break-words">
-                        {record?.rawText ?? "No source record"}
-                      </span>
-                      {record?.issues.map((issue) => (
-                        <span key={issue} className="text-destructive sm:col-start-2">
-                          {issue}
-                        </span>
+              return (
+                <div key={gameName} className="border border-border p-4 space-y-3">
+                  <label className="flex items-center gap-3 font-semibold">
+                    <Checkbox
+                      aria-label={`Confirm ${gameName}`}
+                      checked={
+                        validSets.length > 0 &&
+                        validSets.every((group) => props.confirmations[group.id])
+                      }
+                      disabled={!validSets.length}
+                      onCheckedChange={(value) =>
+                        props.setConfirmations({
+                          ...props.confirmations,
+                          ...Object.fromEntries(
+                            validSets.map((group) => [group.id, value === true]),
+                          ),
+                        })
+                      }
+                    />
+                    {gameName} · {sets.length} sets · {sets.length - validSets.length} exceptions
+                  </label>
+                  <details>
+                    <summary className="cursor-pointer text-sm text-muted-foreground">
+                      Inspect game records
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {sets.map((group) => (
+                        <div key={group.id} className="border border-border p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                              <div className="font-semibold">
+                                {group.gameName} · Group {group.sequence}
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {group.completeness} · source lines {group.line1?.sourceLine ?? "—"}
+                                , {group.line2?.sourceLine ?? "—"}, {group.line3?.sourceLine ?? "—"}
+                              </div>
+                            </div>
+                            <Badge
+                              variant={
+                                group.completeness === "complete" ? "outline" : "destructive"
+                              }
+                            >
+                              {group.completeness}
+                            </Badge>
+                          </div>
+                          <div className="mt-4 grid gap-2">
+                            {[group.line1, group.line2, group.line3].map((record, index) => (
+                              <div
+                                key={record?.id ?? `missing-${index}`}
+                                className="grid gap-2 border-t border-border/60 pt-2 text-xs sm:grid-cols-[80px_1fr]"
+                              >
+                                <span className="font-semibold text-primary">
+                                  Line {index + 1}
+                                  {record
+                                    ? ` · ${record.drawNumber ?? "no draw ID"}`
+                                    : " · missing"}
+                                </span>
+                                <span className="font-mono break-words">
+                                  {record?.rawText ?? "No source record"}
+                                </span>
+                                {record?.issues.map((issue) => (
+                                  <span key={issue} className="text-destructive sm:col-start-2">
+                                    {issue}
+                                  </span>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                          {group.issues.length > 0 && (
+                            <div className="mt-3 space-y-1 text-xs text-amber-700">
+                              {group.issues.map((issue) => (
+                                <div key={issue}>{issue}</div>
+                              ))}
+                            </div>
+                          )}
+                          {group.completeness !== "complete" && (
+                            <label className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-sm">
+                              <Checkbox
+                                checked={props.confirmations[group.id] ?? false}
+                                onCheckedChange={(checked) =>
+                                  props.setConfirmations({
+                                    ...props.confirmations,
+                                    [group.id]: checked === true,
+                                  })
+                                }
+                              />{" "}
+                              I reviewed this exception; retain it excluded from analysis.
+                            </label>
+                          )}
+                        </div>
                       ))}
                     </div>
-                  ))}
+                  </details>
                 </div>
-                {group.issues.length > 0 && (
-                  <div className="mt-3 space-y-1 text-xs text-amber-700">
-                    {group.issues.map((issue) => (
-                      <div key={issue}>{issue}</div>
-                    ))}
-                  </div>
-                )}
-                {group.completeness !== "complete" && <label className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-sm">
-                  <Checkbox
-                    checked={props.confirmations[group.id] ?? false}
-                    onCheckedChange={(checked) =>
-                      props.setConfirmations({
-                        ...props.confirmations,
-                        [group.id]: checked === true,
-                      })
-                    }
-                  />{" "}
-                  I reviewed this exception; retain it excluded from analysis.
-                </label>}
-              </div>
-            ))}</div></details></div>;
+              );
             })}
             <div className="flex justify-end">
               <Button
