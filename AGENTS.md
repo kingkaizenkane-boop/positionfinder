@@ -12,6 +12,7 @@
 ## Architecture decisions
 - Keep Zero-Separated Analysis in independent parser, analysis, persistence, and UI modules so the existing transition analyzer and workflows remain behaviorally unchanged; ZSA requires confirmed winners and source-group provenance that legacy draw rows do not contain.
 - Preserve triplets as evidence sets within named-game frequency groups, and save source records plus pipe-confirmed winners through one atomic RPC so failures cannot leave partial imports.
+- Aggregate ZSA frequency by normalized provider and game name, not per-set fallback IDs; keep tracing evidence restricted to locally qualifying game groups so unlinked records and singleton games cannot distort qualification.
 
 ## Shared testing access
 - The account-free testing workspace intentionally permits anonymous read/write access to the existing shared analysis and historical-data tables; keep this open only while shared testing is requested because anyone with the app link can change shared records.
