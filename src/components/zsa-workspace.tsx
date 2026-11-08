@@ -1339,7 +1339,7 @@ function EvidenceRows({ pair }: { pair: ZsaAnalysisResult["pairs"][number] }) {
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               {[item.line1, item.line2, item.line3].map((values, lineIndex) => (
                 <div key={`${item.groupId}-line-${lineIndex}`} className="border border-border p-3">
-                  <div className="text-xs font-medium">Line {lineIndex + 1} · draw {item.sourceLines[lineIndex] ? item.sourceLines[lineIndex] : "number unavailable"}</div>
+                  <div className="text-xs font-medium">Line {lineIndex + 1} · draw {item.sourceDrawNumbers[lineIndex] ?? "number unavailable"} · source line {item.sourceLines[lineIndex] ?? "unlinked"}</div>
                   <div className="mt-2 grid grid-cols-5 gap-1 font-mono text-xs">
                     {values.map((number, positionIndex) => (
                       <span key={`${positionIndex}-${number}`} className="border border-border/60 px-1 py-1 text-center">P{positionIndex + 1}<br />{formatZsaNumber(number)}</span>
