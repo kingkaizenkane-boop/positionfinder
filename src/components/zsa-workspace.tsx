@@ -1242,7 +1242,9 @@ function SourceHistoryView({
           Original pasted text, source references, and reviewed groups remain linked to each import.
         </p>
       </div>
-      {batches.map((batch) => {
+      {batches
+        .filter((batch) => groupsByBatch.has(batch.id) || occurrencesByBatch.has(batch.id))
+        .map((batch) => {
         const batchGroups = groupsByBatch.get(batch.id) ?? [];
         const batchOccurrences = occurrencesByBatch.get(batch.id) ?? [];
         return (
@@ -1284,6 +1286,29 @@ function SourceHistoryView({
                           : "missing",
                       )
                       .join(" · ")}
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {[
+                      group.line1_occurrence_id,
+                      group.line2_occurrence_id,
+                      group.line3_occurrence_id,
+                    ].map((id, index) => {
+                      const record = id
+                        ? batchOccurrences.find((item) => item.id === id)
+                        : undefined;
+                      return (
+                        <div key={`${group.id}-source-${index}`} className="border border-border/70 p-2 text-xs">
+                          <div className="font-medium">Line {index + 1} · draw {record?.draw_number ?? "unavailable"}</div>
+                          <div className="mt-1 grid grid-cols-5 gap-1 font-mono">
+                            {record?.position_values?.map((number, position) => (
+                              <span key={position} className="border border-border/60 px-1 py-0.5 text-center">
+                                P{position + 1}:{formatZsaNumber(number)}
+                              </span>
+                            )) ?? <span className="text-muted-foreground">Values unavailable</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
