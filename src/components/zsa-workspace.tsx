@@ -534,7 +534,7 @@ export function ZsaWorkspace() {
       dataset_snapshot: groupSnapshot,
       result_summary: analysis,
       dataset_version: datasetVersion,
-      engine_version: "zsa-v1",
+      engine_version: "zsa-v2-target-first",
     });
     if (response.error) setStatus("The immutable research snapshot could not be saved.");
     else {
