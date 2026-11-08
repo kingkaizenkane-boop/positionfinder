@@ -345,7 +345,7 @@ export function ZsaWorkspace() {
     setPreview(parsed);
     setConfirmations(Object.fromEntries(parsed.groups.map((group) => [group.id, false])));
     setStatus(
-      `${parsed.records.length} source records grouped into ${parsed.groups.length} provisional groups. Nothing has been saved.`,
+      `${parsed.records.length} source records · ${new Set(parsed.groups.map((group) => group.gameName)).size} game groups · ${parsed.groups.length} three-line sets. Nothing has been saved.`,
     );
   };
 
@@ -892,7 +892,7 @@ function Overview({
   busy: boolean;
 }) {
   const metrics = [
-    ["Source groups", groups.length],
+    ["Game groups", new Set(groups.map((group) => `${group.provider.trim().toLowerCase()}|${group.gameName.trim().replace(/\s+/g, " ").toLowerCase()}`)).size],
     ["Confirmed results", analysis.confirmedResultCount],
     [
       "Qualified Line 3 numbers",
@@ -913,12 +913,12 @@ function Overview({
         ))}
       </div>
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Line 3 number frequency</h2>
+        <h2 className="text-lg font-semibold">Line 3 frequency within game groups</h2>
         <div className="overflow-x-auto border border-border">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted">
               <tr>
-                {["Number", "Total", "Groups with 2+", "Candidate"].map((label) => (
+                {["Number", "Within each group", "Total", "Groups with 2+", "Inter-group candidate"].map((label) => (
                   <th key={label} className="px-3 py-2">
                     {label}
                   </th>
@@ -929,14 +929,14 @@ function Overview({
               {analysis.targetNumberFrequency.map((item) => (
                 <tr key={item.number} className="border-t border-border">
                   <td className="px-3 py-2 font-mono">
-                    <details>
-                      <summary className="cursor-pointer">{formatZsaNumber(item.number)}</summary>
-                      {item.byGame.map((entry) => (
-                        <div key={entry.gameId} className="py-1 text-xs">
-                          {entry.gameName}: ×{entry.occurrences}
-                        </div>
-                      ))}
-                    </details>
+                    {formatZsaNumber(item.number)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {item.byGame.map((entry) => (
+                      <div key={entry.gameId} className="py-1 text-xs">
+                        {entry.gameName}: ×{entry.occurrences} · {entry.occurrences > 1 ? "Within-group candidate" : "Below threshold"}
+                      </div>
+                    ))}
                   </td>
                   <td className="px-3 py-2">{item.occurrences}</td>
                   <td className="px-3 py-2">{item.recurringGameGroups}</td>
@@ -959,7 +959,7 @@ function Overview({
             {["complete", "incomplete", "invalid"].map((key) => (
               <div key={key} className="border border-border px-3 py-4">
                 <div className="text-2xl font-semibold">{statusCounts[key] ?? 0}</div>
-                <div className="text-xs capitalize text-muted-foreground">{key} groups</div>
+                <div className="text-xs capitalize text-muted-foreground">{key} sets</div>
               </div>
             ))}
           </div>
@@ -1092,9 +1092,10 @@ function ImportView(props: {
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <CardTitle className="text-base">Source preview</CardTitle>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">{props.preview.records.length} records</Badge>
-                <Badge variant="outline">{props.preview.groups.length} groups</Badge>
+                <Badge variant="outline">{gameSections.length} game groups</Badge>
+                <Badge variant="outline">{props.preview.groups.length} three-line sets</Badge>
                 <Badge variant="outline">
                   {props.preview.records.filter((record) => record.issues.length).length} with
                   issues
@@ -1379,7 +1380,8 @@ function SourceHistoryView({
                 {batch.source_name || "Pasted ZSA source"} · {batch.provider}
               </span>
               <span className="flex gap-2">
-                <Badge variant="outline">{batchGroups.length} groups</Badge>
+                <Badge variant="outline">{new Set(batchGroups.map((group) => group.game_name)).size} game groups</Badge>
+                <Badge variant="outline">{batchGroups.length} sets</Badge>
                 <Badge variant="outline">{batchOccurrences.length} lines</Badge>
                 <Badge variant="outline">{batch.draws_rejected} flagged</Badge>
               </span>

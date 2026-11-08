@@ -530,13 +530,19 @@ export function analyzeZsa(
   groups: ZsaConfirmedGroup[],
   filters: ZsaFilters = { minimumOccurrences: 2, minimumDistinctGames: 1 },
 ): ZsaAnalysisResult {
+  const namedGameIds = new Map<string, string>();
   const eligible = [
     ...new Map(
       groups
         .filter((group) => isConfirmedComplete(group) && filterGroup(group, filters))
         .map((group) => [group.id, group]),
     ).values(),
-  ];
+  ].map((group) => {
+    const key = `${normalizeGame(group.provider)}|${normalizeGame(group.gameName)}`;
+    const gameId = namedGameIds.get(key) ?? group.gameId;
+    namedGameIds.set(key, gameId);
+    return { ...group, gameId };
+  });
   // Named games are the frequency groups; triplets remain evidence sets.
   const targetCounts = new Map<
     number,
@@ -574,6 +580,16 @@ export function analyzeZsa(
   const candidateNumbers = new Set(
     targetNumberFrequency.filter((entry) => entry.qualified).map((entry) => entry.number),
   );
+  const locallyQualifiedSets = new Map(
+    targetNumberFrequency
+      .filter((entry) => entry.qualified)
+      .map((entry) => [
+        entry.number,
+        new Set(entry.byGame.filter((game) => game.occurrences > 1).flatMap((game) => game.setIds)),
+      ]),
+  );
+  const qualifiesForTracing = (number: number, setId: string) =>
+    candidateNumbers.has(number) && locallyQualifiedSets.get(number)?.has(setId) === true;
   const pairEvidence = new Map<string, WinningPairEvidence[]>();
   const pairNumbers = new Map<string, [number, number]>();
 
@@ -690,7 +706,7 @@ export function analyzeZsa(
 
   for (const pair of tracingPairs) {
     for (const evidence of pair.evidence) {
-      if (!evidence.winningNumbers.some((number) => candidateNumbers.has(number))) continue;
+      if (!evidence.winningNumbers.some((number) => qualifiesForTracing(number, evidence.groupId))) continue;
       for (const position of countedSourceGroups.has(evidence.groupId) ? [] : positions) {
         const sourceNumber = evidence.line2[position - 1];
         if (sourceNumber === undefined) continue;
@@ -729,7 +745,7 @@ export function analyzeZsa(
       for (const winnerIndex of [0, 1]) {
         const winner = evidence.winningNumbers[winnerIndex];
         const targetPosition = targetPositions[winnerIndex];
-        if (winner === undefined || !candidateNumbers.has(winner)) continue;
+        if (winner === undefined || !qualifiesForTracing(winner, evidence.groupId)) continue;
         if (targetPosition === undefined) continue;
         for (const sourcePosition of positions) {
           const sourceNumber = evidence.line2[sourcePosition - 1];
@@ -776,8 +792,8 @@ export function analyzeZsa(
                 secondTarget === undefined ||
                 firstTargetNumber === undefined ||
                 secondTargetNumber === undefined ||
-                !candidateNumbers.has(firstTargetNumber) ||
-                !candidateNumbers.has(secondTargetNumber)
+                !qualifiesForTracing(firstTargetNumber, evidence.groupId) ||
+                !qualifiesForTracing(secondTargetNumber, evidence.groupId)
               )
                 continue;
               for (const assignment of [
@@ -822,7 +838,7 @@ export function analyzeZsa(
   for (const group of eligible) {
     const base = evidenceByGroup.get(group.id);
     if (!base || !group.line2 || !group.line3) continue;
-    if (group.line3.some((number) => candidateNumbers.has(number))) {
+    if (group.line3.some((number) => qualifiesForTracing(number, group.id))) {
       for (const position of positions) {
         const number = group.line2[position - 1];
         if (number === undefined) continue;
@@ -839,7 +855,7 @@ export function analyzeZsa(
     }
     for (const targetPosition of positions) {
       const targetNumber = group.line3[targetPosition - 1];
-      if (targetNumber === undefined || !candidateNumbers.has(targetNumber)) continue;
+      if (targetNumber === undefined || !qualifiesForTracing(targetNumber, group.id)) continue;
       for (const sourcePosition of positions) {
         const sourceNumber = group.line2[sourcePosition - 1];
         if (sourceNumber === undefined) continue;
