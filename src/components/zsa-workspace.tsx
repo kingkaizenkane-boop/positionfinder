@@ -53,6 +53,7 @@ type GroupRow = {
   id: string;
   game_id: string | null;
   import_batch_id: string | null;
+  source_reference: string | null;
   group_sequence: number;
   game_name: string;
   provider: string;
@@ -116,6 +117,16 @@ type SavedRun = {
   result_summary: Record<string, unknown>;
   dataset_snapshot: unknown;
 };
+type SavedBatch = {
+  id: string;
+  provider: string;
+  source_name: string | null;
+  games_detected: number;
+  draws_detected: number;
+  draws_rejected: number;
+  status: string;
+  created_at: string;
+};
 type WinningResultPayload = {
   group_id: string;
   winning_numbers: number[];
@@ -154,6 +165,7 @@ export function ZsaWorkspace() {
   const [groups, setGroups] = useState<ZsaConfirmedGroup[]>([]);
   const [winnerRows, setWinnerRows] = useState<WinnerRow[]>([]);
   const [winnerRevisionRows, setWinnerRevisionRows] = useState<WinnerRevisionRow[]>([]);
+  const [savedBatches, setSavedBatches] = useState<SavedBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [minimumOccurrences, setMinimumOccurrences] = useState("2");
   const [minimumGames, setMinimumGames] = useState("1");
@@ -171,7 +183,15 @@ export function ZsaWorkspace() {
 
   const loadWorkspace = async () => {
     setLoading(true);
-    const [groupsResult, occurrencesResult, winnersResult, revisionsResult, casesResult, runsResult] =
+    const [
+      groupsResult,
+      occurrencesResult,
+      winnersResult,
+      revisionsResult,
+      casesResult,
+      runsResult,
+      batchesResult,
+    ] =
       await Promise.all([
         supabase.from("zsa_groups").select("*").order("game_name").order("group_sequence"),
         supabase.from("zsa_source_occurrences").select("*").order("source_order"),
@@ -187,6 +207,11 @@ export function ZsaWorkspace() {
           .select("id, name, dataset_version, created_at, result_summary, dataset_snapshot")
           .order("created_at", { ascending: false })
           .limit(20),
+        supabase
+          .from("import_batches")
+          .select("id, provider, source_name, games_detected, draws_detected, draws_rejected, status, created_at")
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
     const failedRead = [
       groupsResult,
@@ -195,6 +220,7 @@ export function ZsaWorkspace() {
       revisionsResult,
       casesResult,
       runsResult,
+      batchesResult,
     ].find((result) => result.error)?.error;
     if (failedRead)
       setLoadError(
@@ -234,6 +260,14 @@ export function ZsaWorkspace() {
         line3: positionValues(line3?.position_values ?? null),
         line2DrawNumber: line2?.draw_number ?? null,
         line3DrawNumber: line3?.draw_number ?? null,
+        line1DrawNumber: line1?.draw_number ?? null,
+        sourceBatchId: row.import_batch_id,
+        sourceLines: [
+          line1?.source_line_start ?? null,
+          line2?.source_line_start ?? null,
+          line3?.source_line_start ?? null,
+        ],
+        sourceReference: row.source_reference,
         winningNumbers: winner?.winning_numbers ?? null,
         winningPositions: winner?.winning_positions ?? null,
         winnerConfirmed: Boolean(winner),
@@ -242,6 +276,7 @@ export function ZsaWorkspace() {
     setGroups(mappedGroups);
     setWinnerRows(winningRows);
     setWinnerRevisionRows((revisionsResult.data ?? []) as WinnerRevisionRow[]);
+    setSavedBatches((batchesResult.data ?? []) as SavedBatch[]);
     const firstCase = ((casesResult.data ?? []) as ValidationRow[])[0] ?? null;
     setCaseRow(firstCase);
     setCaseLine3(firstCase?.line3_values?.map(formatZsaNumber).join(" ") ?? "");
