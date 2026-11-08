@@ -177,8 +177,14 @@ export function ZsaWorkspace() {
   const [winnersInput, setWinnersInput] = useState("");
   const [winnerPositionsInput, setWinnerPositionsInput] = useState("");
   const [caseRow, setCaseRow] = useState<ValidationRow | null>(null);
+  const [validationCases, setValidationCases] = useState<ValidationRow[]>([]);
   const [caseLine3, setCaseLine3] = useState("");
   const [casePositions, setCasePositions] = useState("");
+  const [newCaseName, setNewCaseName] = useState("");
+  const [newCaseGame, setNewCaseGame] = useState("");
+  const [newCaseProvider, setNewCaseProvider] = useState("");
+  const [newCaseLine2, setNewCaseLine2] = useState("");
+  const [newCaseWinners, setNewCaseWinners] = useState("");
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
   const [savedRunName, setSavedRunName] = useState("ZSA research snapshot");
   const [loadError, setLoadError] = useState("");
@@ -205,7 +211,7 @@ export function ZsaWorkspace() {
           .from("zsa_validation_cases")
           .select("*")
           .order("created_at", { ascending: false })
-          .limit(1),
+          .limit(100),
         supabase
           .from("zsa_analysis_runs")
           .select("id, name, dataset_version, created_at, result_summary, dataset_snapshot")
@@ -288,10 +294,12 @@ export function ZsaWorkspace() {
     setWinnerRows(winningRows);
     setWinnerRevisionRows((revisionsResult.data ?? []) as WinnerRevisionRow[]);
     setSavedBatches((batchesResult.data ?? []) as SavedBatch[]);
-    const firstCase = ((casesResult.data ?? []) as ValidationRow[])[0] ?? null;
-    setCaseRow(firstCase);
-    setCaseLine3(firstCase?.line3_values?.map(formatZsaNumber).join(" ") ?? "");
-    setCasePositions(firstCase?.winning_positions?.join(" ") ?? "");
+    const loadedCases = (casesResult.data ?? []) as ValidationRow[];
+    setValidationCases(loadedCases);
+    const selectedCase = loadedCases.find((item) => item.id === caseRow?.id) ?? loadedCases[0] ?? null;
+    setCaseRow(selectedCase);
+    setCaseLine3(selectedCase?.line3_values?.map(formatZsaNumber).join(" ") ?? "");
+    setCasePositions(selectedCase?.winning_positions?.join(" ") ?? "");
     setSavedRuns((runsResult.data ?? []) as SavedRun[]);
     setLoading(false);
   };
@@ -516,6 +524,10 @@ export function ZsaWorkspace() {
 
   const saveValidationUpdate = async () => {
     if (!caseRow) return;
+    if (caseRow.validation_status === "evaluated") {
+      setStatus("This evaluation is frozen. Create a new validation case to record another draw.");
+      return;
+    }
     const values = caseLine3.trim() ? parseList(caseLine3, 10) : null;
     const positions = casePositions.trim() ? parseList(casePositions, 5) : null;
     if (caseLine3.trim() && !values) {
@@ -554,6 +566,41 @@ export function ZsaWorkspace() {
     if (result.error) setStatus("The validation case could not be updated.");
     else {
       setStatus("Validation case updated separately from the historical training groups.");
+      await loadWorkspace();
+    }
+    setBusy(false);
+  };
+
+  const createValidationCase = async () => {
+    const line2Values = parseList(newCaseLine2, 10);
+    const winningNumbers = parseList(newCaseWinners, 5);
+    if (!newCaseName.trim() || !newCaseGame.trim() || !newCaseProvider.trim() || !line2Values || !winningNumbers || new Set(winningNumbers).size !== 5) {
+      setStatus("Enter a case name, game, provider, ten Line 2 values, and five distinct known winners.");
+      return;
+    }
+    setBusy(true);
+    const { data, error } = await supabase.from("zsa_validation_cases").insert({
+      case_name: newCaseName.trim(),
+      game_name: newCaseGame.trim(),
+      provider: newCaseProvider.trim(),
+      line2_values: line2Values,
+      winning_numbers: winningNumbers,
+      line3_values: null,
+      winning_positions: null,
+      validation_status: "awaiting_line3",
+      analysis_snapshot: {},
+    }).select("*").single();
+    if (error || !data) setStatus("The new validation case could not be saved.");
+    else {
+      setCaseRow(data as ValidationRow);
+      setCaseLine3("");
+      setCasePositions("");
+      setNewCaseName("");
+      setNewCaseGame("");
+      setNewCaseProvider("");
+      setNewCaseLine2("");
+      setNewCaseWinners("");
+      setStatus("Created a separate validation case; it will not enter the historical training data.");
       await loadWorkspace();
     }
     setBusy(false);
@@ -729,12 +776,32 @@ export function ZsaWorkspace() {
           {activeView === "validation" && (
             <ValidationView
               caseRow={caseRow}
+              cases={validationCases}
+              selectCase={(id) => {
+                const nextCase = validationCases.find((item) => item.id === id);
+                if (nextCase) {
+                  setCaseRow(nextCase);
+                  setCaseLine3(nextCase.line3_values?.map(formatZsaNumber).join(" ") ?? "");
+                  setCasePositions(nextCase.winning_positions?.join(" ") ?? "");
+                }
+              }}
               line3={caseLine3}
               setLine3={setCaseLine3}
               positions={casePositions}
               setPositions={setCasePositions}
               save={() => void saveValidationUpdate()}
               evaluate={() => void evaluateValidation()}
+              createCase={() => void createValidationCase()}
+              newCaseName={newCaseName}
+              setNewCaseName={setNewCaseName}
+              newCaseGame={newCaseGame}
+              setNewCaseGame={setNewCaseGame}
+              newCaseProvider={newCaseProvider}
+              setNewCaseProvider={setNewCaseProvider}
+              newCaseLine2={newCaseLine2}
+              setNewCaseLine2={setNewCaseLine2}
+              newCaseWinners={newCaseWinners}
+              setNewCaseWinners={setNewCaseWinners}
               busy={busy}
             />
           )}
