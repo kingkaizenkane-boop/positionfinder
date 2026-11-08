@@ -1289,10 +1289,26 @@ function EvidenceRows({ pair }: { pair: ZsaAnalysisResult["pairs"][number] }) {
             {prettyPair(item.winningNumbers)} · positions{" "}
             {item.winningPositions?.join(", ") ?? "unconfirmed"}
           </div>
-          <div>
-            <div className="text-muted-foreground">Line 2 source</div>
-            <span className="font-mono">{item.line2.map(formatZsaNumber).join(" ")}</span>
-          </div>
+          <details className="border-t border-border pt-2 md:col-span-4">
+            <summary className="cursor-pointer text-xs font-medium">View full source evidence</summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {[item.line1, item.line2, item.line3].map((values, lineIndex) => (
+                <div key={`${item.groupId}-line-${lineIndex}`} className="border border-border p-3">
+                  <div className="text-xs font-medium">Line {lineIndex + 1} · draw {item.sourceLines[lineIndex] ? item.sourceLines[lineIndex] : "number unavailable"}</div>
+                  <div className="mt-2 grid grid-cols-5 gap-1 font-mono text-xs">
+                    {values.map((number, positionIndex) => (
+                      <span key={`${positionIndex}-${number}`} className="border border-border/60 px-1 py-1 text-center">P{positionIndex + 1}<br />{formatZsaNumber(number)}</span>
+                    ))}
+                  </div>
+                  <div className="mt-2 break-words font-mono text-[10px] text-muted-foreground">
+                    {item.sourceTexts[lineIndex] ?? "Original text unavailable"}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground">Provider: {item.provider} · batch: {item.sourceBatchId ?? "not linked"} · source: {item.sourceReference ?? "not supplied"} · source order: {item.sourceOrder}</div>
+            <div className="text-xs text-muted-foreground">Occurrence IDs: {item.sourceOccurrenceIds.map((id) => id ?? "not linked").join(" · ")}</div>
+          </details>
         </div>
       ))}
     </div>
