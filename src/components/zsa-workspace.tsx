@@ -221,8 +221,7 @@ export function ZsaWorkspace() {
         .select(
           "id, provider, source_name, raw_text, games_detected, draws_detected, draws_rejected, status, created_at",
         )
-        .order("created_at", { ascending: false })
-        .limit(30),
+        .order("created_at", { ascending: false }),
     ]);
     const failedRead = [
       groupsResult,
@@ -767,7 +766,6 @@ export function ZsaWorkspace() {
               onView={setActiveView}
               onSave={() => void saveReport()}
               busy={busy}
-              revisions={winnerRevisionRows}
             />
           )}
           {activeView === "import" && (
@@ -868,7 +866,6 @@ function Overview({
   onView,
   onSave,
   busy,
-  revisions,
 }: {
   analysis: ZsaAnalysisResult;
   groups: ZsaConfirmedGroup[];
