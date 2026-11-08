@@ -387,16 +387,18 @@ export function ZsaWorkspace() {
     const prior = winnerRows.find((item) => item.group_id === group.id);
     if (
       prior?.confirmation_status === "confirmed" &&
-      prior.winning_numbers.join(",") !== winningNumbers.join(",")
+      (prior.winning_numbers.join(",") !== winningNumbers.join(",") ||
+        (prior.winning_positions?.join(",") ?? "") !== (rawPositions?.join(",") ?? ""))
     ) {
-      const { error: versionError } = await supabase.from("zsa_winning_results").insert({
-        group_id: group.id,
-        winning_numbers: winningNumbers,
-        winning_positions: rawPositions,
-        confirmation_status: "requires_review",
-        result_date: group.drawDate,
-        source_type: "manual",
-        source_text: `Correction submission; prior confirmed result ${prior.id} preserved.`,
+      const { error: versionError } = await supabase
+        .from("zsa_winning_result_revisions")
+        .insert({
+          confirmed_result_id: prior.id,
+          group_id: group.id,
+          proposed_winning_numbers: winningNumbers,
+          proposed_winning_positions: rawPositions,
+          review_status: "requires_review",
+          source_text: "Correction submitted for shared review; original confirmation is preserved.",
       });
       setStatus(
         versionError
@@ -412,14 +414,15 @@ export function ZsaWorkspace() {
       rawPositions &&
       (prior.winning_positions?.join(",") ?? "") !== rawPositions.join(",")
     ) {
-      const { error: versionError } = await supabase.from("zsa_winning_results").insert({
-        group_id: group.id,
-        winning_numbers: winningNumbers,
-        winning_positions: rawPositions,
-        confirmation_status: "requires_review",
-        result_date: group.drawDate,
-        source_type: "manual",
-        source_text: `Position correction submission; prior confirmed result ${prior.id} preserved.`,
+      const { error: versionError } = await supabase
+        .from("zsa_winning_result_revisions")
+        .insert({
+          confirmed_result_id: prior.id,
+          group_id: group.id,
+          proposed_winning_numbers: winningNumbers,
+          proposed_winning_positions: rawPositions,
+          review_status: "requires_review",
+          source_text: "Position correction submitted for shared review; original confirmation is preserved.",
       });
       setStatus(
         versionError
