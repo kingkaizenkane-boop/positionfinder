@@ -1228,6 +1228,9 @@ function SourceHistoryView({
     list.push(occurrence);
     occurrencesByBatch.set(occurrence.import_batch_id, list);
   }
+  const sourceBatches = batches.filter(
+    (batch) => groupsByBatch.has(batch.id) || occurrencesByBatch.has(batch.id),
+  );
   return (
     <div className="space-y-4">
       <div>
@@ -1236,9 +1239,7 @@ function SourceHistoryView({
           Original pasted text, source references, and reviewed groups remain linked to each import.
         </p>
       </div>
-      {batches
-        .filter((batch) => groupsByBatch.has(batch.id) || occurrencesByBatch.has(batch.id))
-        .map((batch) => {
+      {sourceBatches.map((batch) => {
           const batchGroups = groupsByBatch.get(batch.id) ?? [];
           const batchOccurrences = occurrencesByBatch.get(batch.id) ?? [];
           return (
@@ -1328,7 +1329,7 @@ function SourceHistoryView({
             </details>
           );
         })}
-      {batches.length === 0 && (
+      {sourceBatches.length === 0 && (
         <Empty
           title="No ZSA source imports"
           description="Confirmed ZSA source files will appear here with their original text and group links."
