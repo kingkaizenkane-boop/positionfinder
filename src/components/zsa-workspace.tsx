@@ -147,6 +147,7 @@ const prettyPair = (pair: [number, number]) =>
 export function ZsaWorkspace() {
   const [activeView, setActiveView] = useState<WorkspaceView>("overview");
   const [provider, setProvider] = useState("");
+  const [sourceName, setSourceName] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [preview, setPreview] = useState<ZsaParseResult | null>(null);
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
@@ -331,7 +332,7 @@ export function ZsaWorkspace() {
       {
         p_batch_id: batchId,
         p_provider: preview.provider,
-        p_source_name: "ZSA source import",
+        p_source_name: sourceName.trim() || "Pasted ZSA source",
         p_raw_text: preview.rawText,
         p_occurrences: occurrencesPayload,
         p_groups: groupsPayload,
@@ -345,6 +346,7 @@ export function ZsaWorkspace() {
       return;
     }
     setSourceText("");
+    setSourceName("");
     setPreview(null);
     setStatus(
       `Saved ${preview.records.length} source records and ${preview.groups.length} confirmed group boundaries. Invalid and incomplete records remain reviewable and are excluded from analysis.`,
@@ -664,6 +666,8 @@ export function ZsaWorkspace() {
             <ImportView
               provider={provider}
               setProvider={setProvider}
+              sourceName={sourceName}
+              setSourceName={setSourceName}
               sourceText={sourceText}
               setSourceText={setSourceText}
               preview={preview}
