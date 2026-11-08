@@ -480,16 +480,24 @@ export function ZsaWorkspace() {
     const winnerPayload: WinningResultPayload = {
       group_id: group.id,
       winning_numbers: winningNumbers,
-      winning_positions: rawPositions,
+      winning_positions: prior?.winning_positions ?? rawPositions,
       confirmation_status: "confirmed",
       result_date: group.drawDate,
       source_type: "manual",
       source_text: "Explicit user confirmation in ZSA workspace",
       confirmed_at: new Date().toISOString(),
     };
-    const result = prior
-      ? await supabase.from("zsa_winning_results").update(winnerPayload).eq("id", prior.id)
-      : await supabase.from("zsa_winning_results").insert(winnerPayload);
+    const result =
+      prior?.confirmation_status === "confirmed"
+        ? rawPositions && !prior.winning_positions
+          ? await supabase
+              .from("zsa_winning_results")
+              .update({ winning_positions: rawPositions })
+              .eq("id", prior.id)
+          : { error: null }
+        : prior
+          ? await supabase.from("zsa_winning_results").update(winnerPayload).eq("id", prior.id)
+          : await supabase.from("zsa_winning_results").insert(winnerPayload);
     if (result.error) setStatus("The confirmed result could not be saved.");
     else {
       setWinnersInput("");
@@ -639,6 +647,17 @@ export function ZsaWorkspace() {
       );
       return;
     }
+    if (
+      !caseRow.winning_numbers.every((number, index) => {
+        const position = caseRow.winning_positions?.[index];
+        return position !== undefined && caseRow.line3_values?.[position - 1] === number;
+      })
+    ) {
+      setStatus(
+        "The saved winning positions do not match this case’s Line 3 values; review them before evaluation.",
+      );
+      return;
+    }
     if (caseRow.validation_status === "evaluated") {
       setStatus(
         "This evaluation is already frozen. Start a new validation case for another comparison.",
@@ -715,7 +734,7 @@ export function ZsaWorkspace() {
           </Select>
         </div>
       </div>
-      <div className="flex gap-2 overflow-x-auto border-b border-border pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
         {nav.map(({ key, label, icon: Icon }) => (
           <Button
             key={key}
@@ -1228,6 +1247,9 @@ function SourceHistoryView({
     list.push(occurrence);
     occurrencesByBatch.set(occurrence.import_batch_id, list);
   }
+  const sourceBatches = batches.filter(
+    (batch) => groupsByBatch.has(batch.id) || occurrencesByBatch.has(batch.id),
+  );
   return (
     <div className="space-y-4">
       <div>
@@ -1236,99 +1258,95 @@ function SourceHistoryView({
           Original pasted text, source references, and reviewed groups remain linked to each import.
         </p>
       </div>
-      {batches
-        .filter((batch) => groupsByBatch.has(batch.id) || occurrencesByBatch.has(batch.id))
-        .map((batch) => {
-          const batchGroups = groupsByBatch.get(batch.id) ?? [];
-          const batchOccurrences = occurrencesByBatch.get(batch.id) ?? [];
-          return (
-            <details key={batch.id} className="border border-border">
-              <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <span className="font-medium">
-                  {batch.source_name || "Pasted ZSA source"} · {batch.provider}
-                </span>
-                <span className="flex gap-2">
-                  <Badge variant="outline">{batchGroups.length} groups</Badge>
-                  <Badge variant="outline">{batchOccurrences.length} lines</Badge>
-                  <Badge variant="outline">{batch.draws_rejected} flagged</Badge>
-                </span>
-              </summary>
-              <div className="space-y-4 border-t border-border p-4">
-                <div className="text-xs text-muted-foreground">
-                  Imported {new Date(batch.created_at).toLocaleString()} · {batch.status}
-                </div>
-                {batchGroups.map((group) => (
-                  <div key={group.id} className="border-b border-border pb-3 text-sm">
-                    <div className="font-medium">
-                      {group.game_name} · group {group.group_sequence} · {group.completeness_status}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Source reference: {group.source_reference || "not provided"} · provider:{" "}
-                      {group.provider} · date: {group.draw_date || "not supplied"}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Linked source lines:{" "}
-                      {[
-                        group.line1_occurrence_id,
-                        group.line2_occurrence_id,
-                        group.line3_occurrence_id,
-                      ]
-                        .map((id) =>
-                          id
-                            ? (batchOccurrences.find((record) => record.id === id)
-                                ?.source_line_start ?? "?")
-                            : "missing",
-                        )
-                        .join(" · ")}
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      {[
-                        group.line1_occurrence_id,
-                        group.line2_occurrence_id,
-                        group.line3_occurrence_id,
-                      ].map((id, index) => {
-                        const record = id
-                          ? batchOccurrences.find((item) => item.id === id)
-                          : undefined;
-                        return (
-                          <div
-                            key={`${group.id}-source-${index}`}
-                            className="border border-border/70 p-2 text-xs"
-                          >
-                            <div className="font-medium">
-                              Line {index + 1} · draw {record?.draw_number ?? "unavailable"}
-                            </div>
-                            <div className="mt-1 grid grid-cols-5 gap-1 font-mono">
-                              {record?.position_values?.map((number, position) => (
-                                <span
-                                  key={position}
-                                  className="border border-border/60 px-1 py-0.5 text-center"
-                                >
-                                  P{position + 1}:{formatZsaNumber(number)}
-                                </span>
-                              )) ?? (
-                                <span className="text-muted-foreground">Values unavailable</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-                <details className="border-t border-border pt-3">
-                  <summary className="cursor-pointer text-sm font-medium">
-                    View exact pasted source text ({batchOccurrences.length} retained records)
-                  </summary>
-                  <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-3 text-xs">
-                    {batch.raw_text}
-                  </pre>
-                </details>
+      {sourceBatches.map((batch) => {
+        const batchGroups = groupsByBatch.get(batch.id) ?? [];
+        const batchOccurrences = occurrencesByBatch.get(batch.id) ?? [];
+        return (
+          <details key={batch.id} className="border border-border">
+            <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <span className="font-medium">
+                {batch.source_name || "Pasted ZSA source"} · {batch.provider}
+              </span>
+              <span className="flex gap-2">
+                <Badge variant="outline">{batchGroups.length} groups</Badge>
+                <Badge variant="outline">{batchOccurrences.length} lines</Badge>
+                <Badge variant="outline">{batch.draws_rejected} flagged</Badge>
+              </span>
+            </summary>
+            <div className="space-y-4 border-t border-border p-4">
+              <div className="text-xs text-muted-foreground">
+                Imported {new Date(batch.created_at).toLocaleString()} · {batch.status}
               </div>
-            </details>
-          );
-        })}
-      {batches.length === 0 && (
+              {batchGroups.map((group) => (
+                <div key={group.id} className="border-b border-border pb-3 text-sm">
+                  <div className="font-medium">
+                    {group.game_name} · group {group.group_sequence} · {group.completeness_status}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Source reference: {group.source_reference || "not provided"} · provider:{" "}
+                    {group.provider} · date: {group.draw_date || "not supplied"}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Linked source lines:{" "}
+                    {[
+                      group.line1_occurrence_id,
+                      group.line2_occurrence_id,
+                      group.line3_occurrence_id,
+                    ]
+                      .map((id) =>
+                        id
+                          ? (batchOccurrences.find((record) => record.id === id)
+                              ?.source_line_start ?? "?")
+                          : "missing",
+                      )
+                      .join(" · ")}
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {[
+                      group.line1_occurrence_id,
+                      group.line2_occurrence_id,
+                      group.line3_occurrence_id,
+                    ].map((id, index) => {
+                      const record = id
+                        ? batchOccurrences.find((item) => item.id === id)
+                        : undefined;
+                      return (
+                        <div
+                          key={`${group.id}-source-${index}`}
+                          className="border border-border/70 p-2 text-xs"
+                        >
+                          <div className="font-medium">
+                            Line {index + 1} · draw {record?.draw_number ?? "unavailable"}
+                          </div>
+                          <div className="mt-1 grid grid-cols-5 gap-1 font-mono">
+                            {record?.position_values?.map((number, position) => (
+                              <span
+                                key={position}
+                                className="border border-border/60 px-1 py-0.5 text-center"
+                              >
+                                P{position + 1}:{formatZsaNumber(number)}
+                              </span>
+                            )) ?? <span className="text-muted-foreground">Values unavailable</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <details className="border-t border-border pt-3">
+                <summary className="cursor-pointer text-sm font-medium">
+                  View exact pasted source text ({batchOccurrences.length} retained records)
+                </summary>
+                <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-3 text-xs">
+                  {batch.raw_text}
+                </pre>
+              </details>
+            </div>
+          </details>
+        );
+      })}
+      {sourceBatches.length === 0 && (
         <Empty
           title="No ZSA source imports"
           description="Confirmed ZSA source files will appear here with their original text and group links."
@@ -1731,6 +1749,19 @@ function ValidationView({
             </p>
           </CardHeader>
           <CardContent className="space-y-5">
+            {caseRow.validation_status === "evaluated" && (
+              <div className="border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
+                <div className="font-medium">This evaluation is frozen</div>
+                <div className="mt-1 text-muted-foreground">
+                  Baseline captured{" "}
+                  {String(caseRow.analysis_snapshot["baselineCapturedAt"] ?? "time unavailable")};{" "}
+                  {Array.isArray(caseRow.analysis_snapshot["baselineGroupIds"])
+                    ? caseRow.analysis_snapshot["baselineGroupIds"].length
+                    : 0}{" "}
+                  training groups.
+                </div>
+              </div>
+            )}
             <div>
               <div className="text-xs text-muted-foreground">Line 2 source</div>
               <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-10">
