@@ -334,6 +334,7 @@ export type Database = {
           line2_occurrence_id: string | null
           line3_occurrence_id: string | null
           provider: string
+          source_reference: string | null
         }
         Insert: {
           completeness_status?: string
@@ -349,6 +350,7 @@ export type Database = {
           line2_occurrence_id?: string | null
           line3_occurrence_id?: string | null
           provider: string
+          source_reference?: string | null
         }
         Update: {
           completeness_status?: string
@@ -364,6 +366,7 @@ export type Database = {
           line2_occurrence_id?: string | null
           line3_occurrence_id?: string | null
           provider?: string
+          source_reference?: string | null
         }
         Relationships: [
           {
