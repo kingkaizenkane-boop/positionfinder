@@ -818,9 +818,29 @@ export function analyzeZsa(
 
   // Individual candidates do not require a recurring pair or winner status at a position.
   mappingEvidence.clear();
+  positionCounts.clear();
+  numberCounts.clear();
+  const evidenceByGroup = new Map(
+    [...pairEvidence.values()].flat().map((item) => [item.groupId, item]),
+  );
   for (const group of eligible) {
-    const base = [...pairEvidence.values()].flat().find((item) => item.groupId === group.id);
+    const base = evidenceByGroup.get(group.id);
     if (!base || !group.line2 || !group.line3) continue;
+    if (group.line3.some((number) => candidateNumbers.has(number))) {
+      for (const position of positions) {
+        const number = group.line2[position - 1];
+        if (number === undefined) continue;
+        const pos = positionCounts.get(position) ?? { count: 0, byGame: {} };
+        pos.count += 1;
+        increment(pos.byGame, group.gameId);
+        positionCounts.set(position, pos);
+        const num = numberCounts.get(number) ?? { count: 0, byPosition: {}, byGame: {} };
+        num.count += 1;
+        increment(num.byPosition, String(position));
+        increment(num.byGame, group.gameId);
+        numberCounts.set(number, num);
+      }
+    }
     for (const targetPosition of positions) {
       const targetNumber = group.line3[targetPosition - 1];
       if (targetNumber === undefined || !candidateNumbers.has(targetNumber)) continue;
@@ -837,12 +857,7 @@ export function analyzeZsa(
           groupIds: new Set<string>(),
           gameIds: new Set<string>(),
         };
-        if (!entry.groupIds.has(group.id))
-          entry.evidence.push({
-            ...base,
-            winningNumbers: [targetNumber, targetNumber],
-            winningPositions: [targetPosition, targetPosition],
-          });
+        if (!entry.groupIds.has(group.id)) entry.evidence.push(base);
         entry.groupIds.add(group.id);
         entry.gameIds.add(group.gameId);
         mappingEvidence.set(key, entry);
