@@ -437,7 +437,7 @@ export function ZsaWorkspace() {
     if (
       prior?.confirmation_status === "confirmed" &&
       (prior.winning_numbers.join(",") !== winningNumbers.join(",") ||
-        (prior.winning_positions?.join(",") ?? "") !== (rawPositions?.join(",") ?? ""))
+        Boolean(prior.winning_positions && (!rawPositions || prior.winning_positions.join(",") !== rawPositions.join(","))))
     ) {
       const { error: versionError } = await supabase
         .from("zsa_winning_result_revisions")
@@ -453,30 +453,6 @@ export function ZsaWorkspace() {
         versionError
           ? "The correction evidence could not be retained; the prior confirmed result remains unchanged."
           : "Correction saved as a separate review record; the prior confirmed result remains unchanged.",
-      );
-      setBusy(false);
-      if (!versionError) await loadWorkspace();
-      return;
-    }
-    if (
-      prior?.confirmation_status === "confirmed" &&
-      rawPositions &&
-      (prior.winning_positions?.join(",") ?? "") !== rawPositions.join(",")
-    ) {
-      const { error: versionError } = await supabase
-        .from("zsa_winning_result_revisions")
-        .insert({
-          confirmed_result_id: prior.id,
-          group_id: group.id,
-          proposed_winning_numbers: winningNumbers,
-          proposed_winning_positions: rawPositions,
-          review_status: "requires_review",
-          source_text: "Position correction submitted for shared review; original confirmation is preserved.",
-      });
-      setStatus(
-        versionError
-          ? "The position correction could not be retained; the prior confirmed result remains unchanged."
-          : "Position correction saved as separate review evidence; the prior confirmed result remains unchanged.",
       );
       setBusy(false);
       if (!versionError) await loadWorkspace();
