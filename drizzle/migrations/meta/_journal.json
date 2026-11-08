@@ -64,6 +64,13 @@
       "when": 1794115091125,
       "tag": "0008_tighten_zsa_confirmation_and_import_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794115244648,
+      "tag": "0009_prevent_zsa_confirmation_status_reset",
+      "breakpoints": true
     }
   ]
 }
