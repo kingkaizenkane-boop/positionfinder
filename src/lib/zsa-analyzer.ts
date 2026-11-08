@@ -784,6 +784,26 @@ export function analyzeZsa(
     }
   }
 
+  // Individual candidates do not require a recurring pair or winner status at a position.
+  mappingEvidence.clear();
+  for (const group of eligible) {
+    const base = [...pairEvidence.values()].flat().find((item) => item.groupId === group.id);
+    if (!base || !group.line2 || !group.line3) continue;
+    for (const targetPosition of positions) {
+      const targetNumber = group.line3[targetPosition - 1];
+      if (targetNumber === undefined || !candidateNumbers.has(targetNumber)) continue;
+      for (const sourcePosition of positions) {
+        const sourceNumber = group.line2[sourcePosition - 1];
+        if (sourceNumber === undefined) continue;
+        const key = `${sourcePosition}|${sourceNumber}|${targetPosition}|${targetNumber}`;
+        const entry = mappingEvidence.get(key) ?? { sourcePosition, sourceNumber, targetPosition, targetNumber, evidence: [], groupIds: new Set<string>(), gameIds: new Set<string>() };
+        if (!entry.groupIds.has(group.id)) entry.evidence.push({ ...base, winningNumbers: [targetNumber, targetNumber], winningPositions: [targetPosition, targetPosition] });
+        entry.groupIds.add(group.id);
+        entry.gameIds.add(group.gameId);
+        mappingEvidence.set(key, entry);
+      }
+    }
+  }
   const positionFrequency = positions.map((position) => {
     const item = positionCounts.get(position) ?? { count: 0, byGame: {} };
     const total = [...positionCounts.values()].reduce((sum, entry) => sum + entry.count, 0);
