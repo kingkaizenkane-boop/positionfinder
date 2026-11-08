@@ -152,6 +152,20 @@ export type ZsaAnalysisResult = {
   filters: ZsaFilters;
 };
 
+export type ZsaValidationBaseline = {
+  baselineCapturedAt: string;
+  baselineGroupIds: string[];
+  baselineGroups: ZsaConfirmedGroup[];
+  filters: ZsaFilters;
+  baselineResults: ZsaAnalysisResult;
+  note: string;
+};
+
+export type ZsaValidationComparison = {
+  actualWinningPairs: string[];
+  historicallyObservedWinningPairs: string[];
+};
+
 const positions = Array.from({ length: 10 }, (_, index) => index + 1);
 const normalizeGame = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 const isEndMarker = (line: string) => /^\s*(?:\[?\s*)?end(?:\s+of\s+.+)?\s*\]?\s*$/i.test(line);
@@ -773,6 +787,45 @@ export function analyzeZsa(
     exactMappings,
     positionCombinations,
     filters,
+  };
+}
+
+export function createZsaValidationBaseline(
+  groups: ZsaConfirmedGroup[],
+  results: ZsaAnalysisResult,
+  capturedAt: string,
+): ZsaValidationBaseline {
+  const baselineGroups = groups.map((group) => ({ ...group }));
+  return {
+    baselineCapturedAt: capturedAt,
+    baselineGroupIds: baselineGroups.map((group) => group.id),
+    baselineGroups,
+    filters: { ...results.filters },
+    baselineResults: results,
+    note: "The validation case was excluded from its own historical baseline.",
+  };
+}
+
+export function compareZsaValidation(
+  baseline: ZsaValidationBaseline,
+  winningNumbers: number[],
+): ZsaValidationComparison {
+  const historicalPairs = new Set(baseline.baselineResults.pairs.map((pair) => pair.key));
+  const actualWinningPairs: string[] = [];
+  for (let first = 0; first < winningNumbers.length; first += 1) {
+    for (let second = first + 1; second < winningNumbers.length; second += 1) {
+      const a = winningNumbers[first];
+      const b = winningNumbers[second];
+      if (a !== undefined && b !== undefined) {
+        actualWinningPairs.push([a, b].sort((left, right) => left - right).join("-"));
+      }
+    }
+  }
+  return {
+    actualWinningPairs,
+    historicallyObservedWinningPairs: actualWinningPairs.filter((pair) =>
+      historicalPairs.has(pair),
+    ),
   };
 }
 
