@@ -274,11 +274,11 @@ export function ZsaWorkspace() {
         line1DrawNumber: line1?.draw_number ?? null,
         sourceBatchId: row.import_batch_id,
         sourceReference: row.source_reference,
-        sourceOrder: Math.min(
-          ...[line1, line2, line3].flatMap((item) =>
-            item ? [item.source_order] : [],
-          ),
-        ) || row.group_sequence,
+        sourceOrder:
+          line1?.source_order ??
+          line2?.source_order ??
+          line3?.source_order ??
+          row.group_sequence,
         sourceLines: [
           line1?.source_line_start ?? null,
           line2?.source_line_start ?? null,
