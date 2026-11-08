@@ -277,9 +277,9 @@ export function ZsaWorkspace() {
         sourceReference: row.source_reference,
         sourceOrder: Math.min(
           ...[line1, line2, line3].flatMap((item) =>
-            item ? [item.source_order] : [row.group_sequence],
+            item ? [item.source_order] : [],
           ),
-        ),
+        ) || row.group_sequence,
         sourceLines: [
           line1?.source_line_start ?? null,
           line2?.source_line_start ?? null,
@@ -539,6 +539,10 @@ export function ZsaWorkspace() {
 
   const saveValidationUpdate = async () => {
     if (!caseRow) return;
+    if (caseRow.validation_status === "evaluated") {
+      setStatus("This evaluation is frozen. Create a new validation case to record another draw.");
+      return;
+    }
     if (caseRow.validation_status === "evaluated") {
       setStatus("This evaluation is frozen. Create a new validation case to record another draw.");
       return;
