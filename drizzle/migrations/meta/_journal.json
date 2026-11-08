@@ -78,6 +78,13 @@
       "when": 1794115305444,
       "tag": "0010_lock_zsa_confirmations_except_position_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794121032653,
+      "tag": "0011_atomic_zsa_pipe_winners",
+      "breakpoints": true
     }
   ]
 }

@@ -66,9 +66,9 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Positional Transition Analyzer" },
+      { title: "PositionFinder · Positional transitions and ZSA" },
       { name: "description", content: "Analyze historical source-position to target-position relationships across sequential draws." },
-      { property: "og:title", content: "Positional Transition Analyzer" },
+      { property: "og:title", content: "PositionFinder · Positional transitions and ZSA" },
       { property: "og:description", content: "A quantitative workspace for repeated positional transitions and historical evidence." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

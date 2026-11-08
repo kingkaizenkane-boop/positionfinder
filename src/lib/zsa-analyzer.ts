@@ -17,6 +17,7 @@ export type ZsaSourceRecord = {
   sourceOrder: number;
   rawText: string;
   gameName: string;
+  pipeWinners?: number[] | null;
   drawNumber: number | null;
   drawDate: string | null;
   declaredRole: 1 | 2 | 3 | null;
@@ -155,7 +156,16 @@ export type ZsaPositionCombination = {
   evidence: WinningPairEvidence[];
 };
 
+export type ZsaTargetFrequency = {
+  number: number;
+  occurrences: number;
+  recurringGameGroups: number;
+  qualified: boolean;
+  byGame: { gameId: string; gameName: string; occurrences: number; setIds: string[] }[];
+};
+
 export type ZsaAnalysisResult = {
+  targetNumberFrequency: ZsaTargetFrequency[];
   eligibleGroupCount: number;
   excludedGroupCount: number;
   confirmedResultCount: number;
@@ -184,7 +194,12 @@ export type ZsaValidationComparison = {
 
 const positions = Array.from({ length: 10 }, (_, index) => index + 1);
 const normalizeGame = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
-const isEndMarker = (line: string) => /^\s*(?:\[?\s*)?end(?:\s+of\s+.+)?\s*\]?\s*$/i.test(line);
+const isEndMarker = (line: string) => /^\s*\[?\s*end(?:\s+.+?)?\s*\]?\s*$/i.test(line);
+const cleanGameHeader = (line: string) =>
+  line
+    .replace(/^responsive image:\s*/i, "")
+    .trim()
+    .replace(/\s+/g, " ");
 const isMetadataLine = (line: string) =>
   /^(began|last updated|updated|source|database|draws?|date|provider|file)\b/i.test(line.trim());
 const isGameHeader = (line: string) => {
@@ -296,6 +311,13 @@ function makeRecord(
     sourceOrder,
     rawText: line,
     gameName,
+    pipeWinners:
+      body.includes("|") &&
+      values?.length === 10 &&
+      !parsed.issue &&
+      new Set(values.slice(0, 5)).size === 5
+        ? values.slice(0, 5)
+        : null,
     drawNumber,
     drawDate,
     declaredRole,
@@ -381,7 +403,7 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
     }
     if (isGameHeader(trimmed)) {
       closeSegment();
-      gameName = trimmed.replace(/\s+/g, " ");
+      gameName = cleanGameHeader(trimmed);
       return;
     }
     if (isMetadataLine(trimmed)) return;
@@ -515,6 +537,43 @@ export function analyzeZsa(
         .map((group) => [group.id, group]),
     ).values(),
   ];
+  // Named games are the frequency groups; triplets remain evidence sets.
+  const targetCounts = new Map<
+    number,
+    Map<string, { gameId: string; gameName: string; occurrences: number; setIds: string[] }>
+  >();
+  for (const group of eligible) {
+    for (const number of group.line3 ?? []) {
+      const byGame = targetCounts.get(number) ?? new Map();
+      const key = `${normalizeGame(group.provider)}|${group.gameId}`;
+      const entry = byGame.get(key) ?? {
+        gameId: group.gameId,
+        gameName: group.gameName,
+        occurrences: 0,
+        setIds: [],
+      };
+      entry.occurrences += 1;
+      if (!entry.setIds.includes(group.id)) entry.setIds.push(group.id);
+      byGame.set(key, entry);
+      targetCounts.set(number, byGame);
+    }
+  }
+  const targetNumberFrequency = [...targetCounts]
+    .map(([number, counts]) => {
+      const byGame = [...counts.values()];
+      const recurringGameGroups = byGame.filter((entry) => entry.occurrences > 1).length;
+      return {
+        number,
+        byGame,
+        occurrences: byGame.reduce((sum, entry) => sum + entry.occurrences, 0),
+        recurringGameGroups,
+        qualified: recurringGameGroups >= 2,
+      };
+    })
+    .sort((a, b) => b.occurrences - a.occurrences || a.number - b.number);
+  const candidateNumbers = new Set(
+    targetNumberFrequency.filter((entry) => entry.qualified).map((entry) => entry.number),
+  );
   const pairEvidence = new Map<string, WinningPairEvidence[]>();
   const pairNumbers = new Map<string, [number, number]>();
 
@@ -597,9 +656,12 @@ export function analyzeZsa(
         b.occurrenceCount - a.occurrenceCount || a.pair[0] - b.pair[0] || a.pair[1] - b.pair[1],
     );
 
-  const qualifyingIds = new Set(
-    pairs.flatMap((pair) => pair.evidence.map((evidence) => `${pair.key}|${evidence.groupId}`)),
-  );
+  const tracingPairs = [...pairEvidence].map(([key, evidence]) => ({
+    key,
+    pair: pairNumbers.get(key) ?? [0, 0],
+    evidence,
+  }));
+  const countedSourceGroups = new Set<string>();
   const positionCounts = new Map<number, { count: number; byGame: Record<string, number> }>();
   const numberCounts = new Map<
     number,
@@ -630,10 +692,10 @@ export function analyzeZsa(
     }
   >();
 
-  for (const pair of pairs) {
+  for (const pair of tracingPairs) {
     for (const evidence of pair.evidence) {
-      if (!qualifyingIds.has(`${pair.key}|${evidence.groupId}`)) continue;
-      for (const position of positions) {
+      if (!evidence.winningNumbers.some((number) => candidateNumbers.has(number))) continue;
+      for (const position of countedSourceGroups.has(evidence.groupId) ? [] : positions) {
         const sourceNumber = evidence.line2[position - 1];
         if (sourceNumber === undefined) continue;
         const positionEntry = positionCounts.get(position) ?? { count: 0, byGame: {} };
@@ -650,6 +712,7 @@ export function analyzeZsa(
         increment(numberEntry.byGame, evidence.gameId);
         numberCounts.set(sourceNumber, numberEntry);
       }
+      countedSourceGroups.add(evidence.groupId);
 
       const targetPositions = evidence.winningPositions;
       if (
@@ -670,7 +733,7 @@ export function analyzeZsa(
       for (const winnerIndex of [0, 1]) {
         const winner = evidence.winningNumbers[winnerIndex];
         const targetPosition = targetPositions[winnerIndex];
-        if (winner === undefined) continue;
+        if (winner === undefined || !candidateNumbers.has(winner)) continue;
         if (targetPosition === undefined) continue;
         for (const sourcePosition of positions) {
           const sourceNumber = evidence.line2[sourcePosition - 1];
@@ -716,7 +779,9 @@ export function analyzeZsa(
                 firstTarget === undefined ||
                 secondTarget === undefined ||
                 firstTargetNumber === undefined ||
-                secondTargetNumber === undefined
+                secondTargetNumber === undefined ||
+                !candidateNumbers.has(firstTargetNumber) ||
+                !candidateNumbers.has(secondTargetNumber)
               )
                 continue;
               for (const assignment of [
@@ -751,6 +816,54 @@ export function analyzeZsa(
     }
   }
 
+  // Individual candidates do not require a recurring pair or winner status at a position.
+  mappingEvidence.clear();
+  positionCounts.clear();
+  numberCounts.clear();
+  const evidenceByGroup = new Map(
+    [...pairEvidence.values()].flat().map((item) => [item.groupId, item]),
+  );
+  for (const group of eligible) {
+    const base = evidenceByGroup.get(group.id);
+    if (!base || !group.line2 || !group.line3) continue;
+    if (group.line3.some((number) => candidateNumbers.has(number))) {
+      for (const position of positions) {
+        const number = group.line2[position - 1];
+        if (number === undefined) continue;
+        const pos = positionCounts.get(position) ?? { count: 0, byGame: {} };
+        pos.count += 1;
+        increment(pos.byGame, group.gameId);
+        positionCounts.set(position, pos);
+        const num = numberCounts.get(number) ?? { count: 0, byPosition: {}, byGame: {} };
+        num.count += 1;
+        increment(num.byPosition, String(position));
+        increment(num.byGame, group.gameId);
+        numberCounts.set(number, num);
+      }
+    }
+    for (const targetPosition of positions) {
+      const targetNumber = group.line3[targetPosition - 1];
+      if (targetNumber === undefined || !candidateNumbers.has(targetNumber)) continue;
+      for (const sourcePosition of positions) {
+        const sourceNumber = group.line2[sourcePosition - 1];
+        if (sourceNumber === undefined) continue;
+        const key = `${sourcePosition}|${sourceNumber}|${targetPosition}|${targetNumber}`;
+        const entry = mappingEvidence.get(key) ?? {
+          sourcePosition,
+          sourceNumber,
+          targetPosition,
+          targetNumber,
+          evidence: [],
+          groupIds: new Set<string>(),
+          gameIds: new Set<string>(),
+        };
+        if (!entry.groupIds.has(group.id)) entry.evidence.push(base);
+        entry.groupIds.add(group.id);
+        entry.gameIds.add(group.gameId);
+        mappingEvidence.set(key, entry);
+      }
+    }
+  }
   const positionFrequency = positions.map((position) => {
     const item = positionCounts.get(position) ?? { count: 0, byGame: {} };
     const total = [...positionCounts.values()].reduce((sum, entry) => sum + entry.count, 0);
@@ -799,6 +912,7 @@ export function analyzeZsa(
     .sort((a, b) => b.occurrenceCount - a.occurrenceCount || a.key.localeCompare(b.key));
 
   return {
+    targetNumberFrequency,
     eligibleGroupCount: eligible.length,
     excludedGroupCount: groups.length - eligible.length,
     confirmedResultCount: eligible.length,
