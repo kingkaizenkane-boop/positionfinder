@@ -784,7 +784,6 @@ export function ZsaWorkspace() {
               setWinnerPositionsInput={setWinnerPositionsInput}
               saveWinners={() => void saveWinners()}
               revisions={winnerRevisionRows}
-              revisions={winnerRevisionRows}
             />
           )}
           {activeView === "history" && (
