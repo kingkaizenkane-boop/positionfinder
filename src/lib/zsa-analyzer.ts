@@ -454,9 +454,7 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
   return { provider: provider.trim(), rawText, records, groups, warnings };
 }
 
-function isConfirmedComplete(
-  group: ZsaConfirmedGroup,
-): group is ZsaConfirmedGroup & {
+function isConfirmedComplete(group: ZsaConfirmedGroup): group is ZsaConfirmedGroup & {
   line1: ZsaNumbers;
   line2: ZsaNumbers;
   line3: ZsaNumbers;
