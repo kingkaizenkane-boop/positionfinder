@@ -132,12 +132,12 @@ describe("confirmed ZSA analysis", () => {
   });
 
   it("preserves source position identity, numbers, exact target mapping, and pair direction", () => {
-    const result = analyzeZsa([group(), group({ id: "group-2", groupSequence: 2 })]);
+    const result = analyzeZsa([group(), group({ id: "group-2", groupSequence: 2 }), group({ id: "b-1", gameId: "game-b" }), group({ id: "b-2", gameId: "game-b", groupSequence: 2 })]);
 
     expect(result.positionFrequency).toHaveLength(10);
-    expect(result.positionFrequency[0]?.occurrences).toBe(20);
+    expect(result.positionFrequency[0]?.occurrences).toBe(4);
     const source65 = result.sourceNumberFrequency.find((item) => item.number === 65);
-    expect(source65?.byPosition[1]).toBe(20);
+    expect(source65?.byPosition[1]).toBe(4);
     expect(source65?.byPosition[8]).toBeUndefined();
     expect(
       result.exactMappings.some(
@@ -170,6 +170,8 @@ describe("confirmed ZSA analysis", () => {
     const result = analyzeZsa([
       group({ id: "first", groupSequence: 1 }),
       group({ id: "second", groupSequence: 2, line2: differentSource }),
+      group({ id: "b1", gameId: "game-b" }),
+      group({ id: "b2", gameId: "game-b", groupSequence: 2 }),
     ]);
     const combined = result.positionCombinations.filter(
       (item) =>
@@ -307,5 +309,35 @@ describe("confirmed ZSA analysis", () => {
     expect(evidence?.sourceDrawNumbers).toEqual([263, 264, 265]);
     expect(evidence?.sourceTexts).toEqual(["line one", "line two", "line three"]);
     expect(evidence?.sourceOccurrenceIds).toEqual(["occ-1", "occ-2", "occ-3"]);
+  });
+});
+
+
+describe("target-first game-group qualification", () => {
+  it("requires more than one Line 3 occurrence inside each of at least two game groups", () => {
+    const rows = [group({ id: "a1" }), group({ id: "a2" }), group({ id: "b1", gameId: "b" })];
+    const before = analyzeZsa(rows);
+    expect(before.targetNumberFrequency.find((item) => item.number === 47)?.qualified).toBe(false);
+    expect(before.exactMappings).toHaveLength(0);
+    const after = analyzeZsa([...rows, group({ id: "b2", gameId: "b" })]);
+    expect(after.targetNumberFrequency.find((item) => item.number === 47)).toMatchObject({ occurrences: 4, recurringGameGroups: 2, qualified: true });
+    expect(after.exactMappings.find((item) => item.key === "1|65|1|47")?.occurrenceCount).toBe(4);
+  });
+  it("never qualifies a number merely frequent on Line 1 or Line 2", () => {
+    const result = analyzeZsa([group({ id: "a1" }), group({ id: "a2" }), group({ id: "b1", gameId: "b" }), group({ id: "b2", gameId: "b" })]);
+    expect(result.targetNumberFrequency.find((item) => item.number === 65)).toBeUndefined();
+    expect(result.exactMappings.some((item) => item.targetNumber === 65)).toBe(false);
+    expect(result.exactMappings.some((item) => item.targetNumber === 11 && item.targetPosition === 6)).toBe(true);
+  });
+  it("counts each Line 3 value once per actual position, not per winning pair", () => {
+    const result = analyzeZsa([group({ id: "a1" }), group({ id: "a2" })]);
+    expect(result.targetNumberFrequency.find((item) => item.number === 47)?.occurrences).toBe(2);
+    expect(result.targetNumberFrequency.find((item) => item.number === 47)?.recurringGameGroups).toBe(1);
+  });
+  it("cleans named headers, closes named end tags, and exposes pipe winners without inventing them", () => {
+    const parsed = parseZsaSource("responsive image: Ghana Fortune\n01 02 03 04 05 | 06 07 08 09 10\n11 12 13 14 15 | 16 17 18 19 20\n21 22 23 24 25 | 26 27 28 29 30\n[End Ghana Fortune]\nGame B\n31 32 33 34 35 36 37 38 39 40", "Provider");
+    expect(parsed.groups.map((item) => item.gameName)).toEqual(["Ghana Fortune", "Game B"]);
+    expect(parsed.groups[0]?.line3?.pipeWinners).toEqual([21, 22, 23, 24, 25]);
+    expect(parsed.groups[1]?.line1?.pipeWinners).toBeNull();
   });
 });
