@@ -18,7 +18,7 @@ function group(overrides: Partial<ZsaConfirmedGroup> = {}): ZsaConfirmedGroup {
   return {
     id: "group-1",
     gameId: "game-a",
-    gameName: "Golden Chance Bazooka",
+    gameName: overrides.gameName ?? (overrides.gameId && overrides.gameId !== "game-a" ? `Game ${overrides.gameId}` : "Golden Chance Bazooka"),
     provider: "Golden Chance",
     groupSequence: 1,
     drawDate: "2024-01-01",
@@ -31,7 +31,6 @@ function group(overrides: Partial<ZsaConfirmedGroup> = {}): ZsaConfirmedGroup {
     winningPositions: positions,
     winnerConfirmed: true,
     ...overrides,
-    gameName: overrides.gameName ?? (overrides.gameId && overrides.gameId !== "game-a" ? `Game ${overrides.gameId}` : "Golden Chance Bazooka"),
   };
 }
 
