@@ -541,26 +541,13 @@ export function ZsaWorkspace() {
       );
       return;
     }
-    const historicalPairs = new Set(analysis.pairs.map((pair) => pair.key));
-    const actualPairs: string[] = [];
-    for (let first = 0; first < caseRow.winning_numbers.length; first += 1) {
-      for (let second = first + 1; second < caseRow.winning_numbers.length; second += 1) {
-        const a = caseRow.winning_numbers[first];
-        const b = caseRow.winning_numbers[second];
-        if (a !== undefined && b !== undefined)
-          actualPairs.push([a, b].sort((left, right) => left - right).join("-"));
-      }
+    if (caseRow.validation_status === "evaluated") {
+      setStatus("This evaluation is already frozen. Start a new validation case for another comparison.");
+      return;
     }
-    const snapshot = {
-      baselineCapturedAt: new Date().toISOString(),
-      baselineGroupIds: groups.map((group) => group.id),
-      baselineGroups: groups.map((group) => ({ ...group })),
-      filters: analysis.filters,
-      baselineResults: analysis,
-      actualWinningPairs: actualPairs,
-      historicallyObservedWinningPairs: actualPairs.filter((pair) => historicalPairs.has(pair)),
-      note: "The validation case was excluded from its own historical baseline.",
-    };
+    const baseline = createZsaValidationBaseline(groups, analysis, new Date().toISOString());
+    const comparison = compareZsaValidation(baseline, caseRow.winning_numbers);
+    const snapshot = { ...baseline, ...comparison };
     setBusy(true);
     const result = await supabase
       .from("zsa_validation_cases")
