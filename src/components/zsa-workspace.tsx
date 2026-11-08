@@ -15,6 +15,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   analyzeZsa,
+  compareZsaValidation,
+  createZsaValidationBaseline,
   formatZsaNumber,
   parseZsaSource,
   type ZsaAnalysisResult,
@@ -84,6 +86,16 @@ type WinnerRow = {
   confirmation_status: string;
   result_date: string | null;
 };
+type WinnerRevisionRow = {
+  id: string;
+  group_id: string;
+  confirmed_result_id: string;
+  proposed_winning_numbers: number[];
+  proposed_winning_positions: number[] | null;
+  review_status: string;
+  source_text: string;
+  created_at: string;
+};
 type ValidationRow = {
   id: string;
   case_name: string;
@@ -140,6 +152,7 @@ export function ZsaWorkspace() {
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
   const [groups, setGroups] = useState<ZsaConfirmedGroup[]>([]);
   const [winnerRows, setWinnerRows] = useState<WinnerRow[]>([]);
+  const [winnerRevisionRows, setWinnerRevisionRows] = useState<WinnerRevisionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [minimumOccurrences, setMinimumOccurrences] = useState("2");
   const [minimumGames, setMinimumGames] = useState("1");
@@ -157,11 +170,12 @@ export function ZsaWorkspace() {
 
   const loadWorkspace = async () => {
     setLoading(true);
-    const [groupsResult, occurrencesResult, winnersResult, casesResult, runsResult] =
+    const [groupsResult, occurrencesResult, winnersResult, revisionsResult, casesResult, runsResult] =
       await Promise.all([
         supabase.from("zsa_groups").select("*").order("game_name").order("group_sequence"),
         supabase.from("zsa_source_occurrences").select("*").order("source_order"),
         supabase.from("zsa_winning_results").select("*"),
+        supabase.from("zsa_winning_result_revisions").select("*"),
         supabase
           .from("zsa_validation_cases")
           .select("*")
@@ -177,6 +191,7 @@ export function ZsaWorkspace() {
       groupsResult,
       occurrencesResult,
       winnersResult,
+      revisionsResult,
       casesResult,
       runsResult,
     ].find((result) => result.error)?.error;
@@ -225,6 +240,7 @@ export function ZsaWorkspace() {
     });
     setGroups(mappedGroups);
     setWinnerRows(winningRows);
+    setWinnerRevisionRows((revisionsResult.data ?? []) as WinnerRevisionRow[]);
     const firstCase = ((casesResult.data ?? []) as ValidationRow[])[0] ?? null;
     setCaseRow(firstCase);
     setCaseLine3(firstCase?.line3_values?.map(formatZsaNumber).join(" ") ?? "");
