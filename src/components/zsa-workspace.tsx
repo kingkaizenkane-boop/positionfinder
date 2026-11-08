@@ -639,6 +639,15 @@ export function ZsaWorkspace() {
       );
       return;
     }
+    if (
+      !caseRow.winning_numbers.every((number, index) => {
+        const position = caseRow.winning_positions?.[index];
+        return position !== undefined && caseRow.line3_values?.[position - 1] === number;
+      })
+    ) {
+      setStatus("The saved winning positions do not match this case’s Line 3 values; review them before evaluation.");
+      return;
+    }
     if (caseRow.validation_status === "evaluated") {
       setStatus(
         "This evaluation is already frozen. Start a new validation case for another comparison.",
@@ -1732,6 +1741,14 @@ function ValidationView({
             </p>
           </CardHeader>
           <CardContent className="space-y-5">
+        {caseRow.validation_status === "evaluated" && (
+          <div className="border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
+            <div className="font-medium">This evaluation is frozen</div>
+            <div className="mt-1 text-muted-foreground">
+              Baseline captured {String(caseRow.analysis_snapshot["baselineCapturedAt"] ?? "time unavailable")}; {Array.isArray(caseRow.analysis_snapshot["baselineGroupIds"]) ? caseRow.analysis_snapshot["baselineGroupIds"].length : 0} training groups.
+            </div>
+          </div>
+        )}
             <div>
               <div className="text-xs text-muted-foreground">Line 2 source</div>
               <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-10">
