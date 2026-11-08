@@ -729,6 +729,7 @@ function Overview({
   onView,
   onSave,
   busy,
+  revisions,
 }: {
   analysis: ZsaAnalysisResult;
   groups: ZsaConfirmedGroup[];
@@ -1443,6 +1444,7 @@ function ReportsView({
   setName: (value: string) => void;
   save: () => void;
   busy: boolean;
+  revisions: WinnerRevisionRow[];
 }) {
   return (
     <div className="space-y-5">
