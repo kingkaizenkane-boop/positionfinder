@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -191,7 +191,7 @@ export function ZsaWorkspace() {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const loadWorkspace = async () => {
+  const loadWorkspace = useCallback(async () => {
     setLoading(true);
     const [
       groupsResult,
@@ -315,11 +315,11 @@ export function ZsaWorkspace() {
     setCasePositions(selectedCase?.winning_positions?.join(" ") ?? "");
     setSavedRuns((runsResult.data ?? []) as SavedRun[]);
     setLoading(false);
-  };
+  }, [caseRow?.id]);
 
   useEffect(() => {
     void loadWorkspace();
-  }, []);
+  }, [loadWorkspace]);
 
   const analysis = useMemo(
     () =>

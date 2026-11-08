@@ -278,7 +278,7 @@ function makeRecord(
     body = labeled[3] ?? "";
   }
   const dated = body.match(
-    /^\s*(\d+)\s*[:\-]\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\s*[:\-]?\s*(.*)$/,
+    /^\s*(\d+)\s*[:-]\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\s*[:-]?\s*(.*)$/,
   );
   if (dated) {
     drawNumber = Number(dated[1]);
@@ -315,7 +315,7 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
   const warnings: string[] = [];
   let gameName = "Unspecified game";
   let currentSegment: ZsaSourceRecord[] = [];
-  let sequenceByGame = new Map<string, number>();
+  const sequenceByGame = new Map<string, number>();
   let order = 0;
 
   const closeSegment = () => {
