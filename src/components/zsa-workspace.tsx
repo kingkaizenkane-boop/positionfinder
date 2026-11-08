@@ -1459,30 +1459,66 @@ function ReportsView({
         </Button>
       </div>
       <div className="space-y-2">
-        {runs.map((run) => (
-          <Card key={run.id}>
-            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div>
-                <div className="font-semibold">{run.name}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {new Date(run.created_at).toLocaleString()} · dataset{" "}
-                  {run.dataset_version.slice(0, 24)}
+        {runs.map((run) => {
+          const savedPairs = Array.isArray(run.result_summary["pairs"])
+            ? (run.result_summary["pairs"] as ZsaAnalysisResult["pairs"])
+            : [];
+          const frozenGroups = Array.isArray(run.dataset_snapshot)
+            ? (run.dataset_snapshot as ZsaConfirmedGroup[])
+            : [];
+          return (
+            <Card key={run.id}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{run.name}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {new Date(run.created_at).toLocaleString()} · dataset {run.dataset_version.slice(0, 24)}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline">{frozenGroups.length} groups</Badge>
+                    <Badge variant="outline">{savedPairs.length} pairs</Badge>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Badge variant="outline">
-                  {Number(run.result_summary["eligibleGroupCount"] ?? 0)} groups
-                </Badge>
-                <Badge variant="outline">
-                  {Array.isArray(run.result_summary["pairs"])
-                    ? run.result_summary["pairs"].length
-                    : 0}{" "}
-                  pairs
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <details className="border-t border-border pt-3">
+                  <summary className="cursor-pointer text-sm font-medium">Open frozen evidence</summary>
+                  <div className="mt-4 space-y-4">
+                    {savedPairs.map((pair) => (
+                      <div key={pair.key} className="border border-border p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-mono font-semibold">{prettyPair(pair.pair)}</span>
+                          <Badge variant="outline">×{pair.occurrenceCount} · {pair.distinctGames} games</Badge>
+                        </div>
+                        <EvidenceRows pair={pair} />
+                      </div>
+                    ))}
+                    {frozenGroups.length > 0 && (
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-semibold">Frozen source groups</h3>
+                        {frozenGroups.map((group) => (
+                          <div key={group.id} className="border border-border px-3 py-2 text-xs">
+                            <div className="font-medium">{group.gameName} · group {group.groupSequence}</div>
+                            <div className="mt-1 font-mono text-muted-foreground">
+                              Line 2: {group.line2?.map(formatZsaNumber).join(" ") ?? "unavailable"}
+                            </div>
+                            <div className="font-mono text-muted-foreground">
+                              Line 3: {group.line3?.map(formatZsaNumber).join(" ") ?? "unavailable"}
+                            </div>
+                            <div className="text-muted-foreground">
+                              Winners: {group.winningNumbers?.map(formatZsaNumber).join(" · ") ?? "unconfirmed"}
+                              {group.winningPositions ? ` · positions ${group.winningPositions.join(", ")}` : " · positions unconfirmed"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </CardContent>
+            </Card>
+          );
+        })}
         {runs.length === 0 && (
           <Empty
             title="No saved ZSA reports"
