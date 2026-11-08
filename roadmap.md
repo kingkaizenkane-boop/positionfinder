@@ -11,4 +11,5 @@
 - [x] Add repeated target-pair analysis with stable one- or two-source positional paths
 - [x] Add Line 3 total frequency count of every target number, separate from matched-pair frequency
 - [x] Enable and verify account-free shared testing access for reads, imports, saves, edits, and deletes (shared policies remain active until explicitly reverted)
-- [ ] Add independent ZSA grouped-source ingestion, confirmed winner provenance, analysis engine, dashboard, immutable reports, and isolated live validation; historical source data awaits user upload
+- [x] Add independent ZSA grouped-source ingestion, confirmed winner provenance, analysis engine, dashboard, immutable reports, and isolated live validation
+- [ ] Import original grouped historical source data into ZSA after the user supplies it; existing legacy draw rows are not a trustworthy substitute

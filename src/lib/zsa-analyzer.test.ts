@@ -259,4 +259,53 @@ describe("confirmed ZSA analysis", () => {
     expect(comparison.actualWinningPairs).toHaveLength(10);
     expect(comparison.historicallyObservedWinningPairs).toHaveLength(10);
   });
+
+  it("retains source file, batch, line, and draw provenance on each occurrence", () => {
+    const result = analyzeZsa(
+      [
+        group({
+          sourceBatchId: "batch-2024-01",
+          sourceReference: "official-draws-2024.txt",
+          sourceOrder: 12,
+          sourceLines: [31, 32, 33],
+          sourceDrawNumbers: [263, 264, 265],
+          sourceTexts: ["line one", "line two", "line three"],
+          sourceOccurrenceIds: ["occ-1", "occ-2", "occ-3"],
+        }),
+      ],
+      { minimumOccurrences: 1, minimumDistinctGames: 1 },
+    );
+    const evidence = result.pairs[0]?.evidence[0];
+
+    expect(evidence?.sourceBatchId).toBe("batch-2024-01");
+    expect(evidence?.sourceReference).toBe("official-draws-2024.txt");
+    expect(evidence?.sourceLines).toEqual([31, 32, 33]);
+    expect(evidence?.sourceDrawNumbers).toEqual([263, 264, 265]);
+    expect(evidence?.sourceTexts).toEqual(["line one", "line two", "line three"]);
+    expect(evidence?.sourceOccurrenceIds).toEqual(["occ-1", "occ-2", "occ-3"]);
+  });
+  it("retains source file, batch, line, and draw provenance on each occurrence", () => {
+    const result = analyzeZsa(
+      [
+        group({
+          sourceBatchId: "batch-2024-01",
+          sourceReference: "official-draws-2024.txt",
+          sourceOrder: 12,
+          sourceLines: [31, 32, 33],
+          sourceDrawNumbers: [263, 264, 265],
+          sourceTexts: ["line one", "line two", "line three"],
+          sourceOccurrenceIds: ["occ-1", "occ-2", "occ-3"],
+        }),
+      ],
+      { minimumOccurrences: 1, minimumDistinctGames: 1 },
+    );
+    const evidence = result.pairs[0]?.evidence[0];
+
+    expect(evidence?.sourceBatchId).toBe("batch-2024-01");
+    expect(evidence?.sourceReference).toBe("official-draws-2024.txt");
+    expect(evidence?.sourceLines).toEqual([31, 32, 33]);
+    expect(evidence?.sourceDrawNumbers).toEqual([263, 264, 265]);
+    expect(evidence?.sourceTexts).toEqual(["line one", "line two", "line three"]);
+    expect(evidence?.sourceOccurrenceIds).toEqual(["occ-1", "occ-2", "occ-3"]);
+  });
 });

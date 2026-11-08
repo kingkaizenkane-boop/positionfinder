@@ -59,6 +59,14 @@ export type ZsaConfirmedGroup = {
   line3: ZsaNumbers | null;
   line2DrawNumber?: number | null;
   line3DrawNumber?: number | null;
+  line1DrawNumber?: number | null;
+  sourceBatchId?: string | null;
+  sourceReference?: string | null;
+  sourceOrder?: number;
+  sourceLines?: [number | null, number | null, number | null];
+  sourceTexts?: [string | null, string | null, string | null];
+  sourceOccurrenceIds?: [string | null, string | null, string | null];
+  sourceDrawNumbers?: [number | null, number | null, number | null];
   winningNumbers: number[] | null;
   winningPositions: number[] | null;
   winnerConfirmed: boolean;
@@ -81,7 +89,15 @@ export type WinningPairEvidence = {
   groupSequence: number;
   date: string | null;
   drawNumber: number | null;
+  sourceBatchId: string | null;
+  sourceReference: string | null;
+  sourceOrder: number;
+  sourceLines: [number | null, number | null, number | null];
+  sourceTexts: [string | null, string | null, string | null];
+  sourceOccurrenceIds: [string | null, string | null, string | null];
+  sourceDrawNumbers: [number | null, number | null, number | null];
   winningNumbers: [number, number];
+  line1: ZsaNumbers;
   line2: ZsaNumbers;
   line3: ZsaNumbers;
   winningPositions: number[] | null;
@@ -262,7 +278,7 @@ function makeRecord(
     body = labeled[3] ?? "";
   }
   const dated = body.match(
-    /^\s*(\d+)\s*[:\-]\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\s*[:\-]?\s*(.*)$/,
+    /^\s*(\d+)\s*[:-]\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})\s*[:-]?\s*(.*)$/,
   );
   if (dated) {
     drawNumber = Number(dated[1]);
@@ -299,7 +315,7 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
   const warnings: string[] = [];
   let gameName = "Unspecified game";
   let currentSegment: ZsaSourceRecord[] = [];
-  let sequenceByGame = new Map<string, number>();
+  const sequenceByGame = new Map<string, number>();
   let order = 0;
 
   const closeSegment = () => {
@@ -438,9 +454,7 @@ export function parseZsaSource(rawText: string, provider: string): ZsaParseResul
   return { provider: provider.trim(), rawText, records, groups, warnings };
 }
 
-function isConfirmedComplete(
-  group: ZsaConfirmedGroup,
-): group is ZsaConfirmedGroup & {
+function isConfirmedComplete(group: ZsaConfirmedGroup): group is ZsaConfirmedGroup & {
   line1: ZsaNumbers;
   line2: ZsaNumbers;
   line3: ZsaNumbers;
@@ -525,7 +539,15 @@ export function analyzeZsa(
           groupSequence: group.groupSequence,
           date: group.drawDate,
           drawNumber: group.line3DrawNumber ?? null,
+          sourceBatchId: group.sourceBatchId ?? null,
+          sourceReference: group.sourceReference ?? null,
+          sourceOrder: group.sourceOrder ?? group.groupSequence,
+          sourceLines: group.sourceLines ?? [null, null, null],
+          sourceTexts: group.sourceTexts ?? [null, null, null],
+          sourceOccurrenceIds: group.sourceOccurrenceIds ?? [null, null, null],
+          sourceDrawNumbers: group.sourceDrawNumbers ?? [null, null, null],
           winningNumbers: pair,
+          line1: group.line1,
           line2: group.line2,
           line3: group.line3,
           winningPositions: group.winningPositions

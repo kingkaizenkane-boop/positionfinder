@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ import {
 type WorkspaceView =
   | "overview"
   | "import"
+  | "history"
   | "pairs"
   | "positions"
   | "mappings"
@@ -53,6 +54,7 @@ type GroupRow = {
   id: string;
   game_id: string | null;
   import_batch_id: string | null;
+  source_reference: string | null;
   group_sequence: number;
   game_name: string;
   provider: string;
@@ -116,6 +118,17 @@ type SavedRun = {
   result_summary: Record<string, unknown>;
   dataset_snapshot: unknown;
 };
+type SavedBatch = {
+  id: string;
+  provider: string;
+  source_name: string | null;
+  raw_text: string;
+  games_detected: number;
+  draws_detected: number;
+  draws_rejected: number;
+  status: string;
+  created_at: string;
+};
 type WinningResultPayload = {
   group_id: string;
   winning_numbers: number[];
@@ -147,12 +160,16 @@ const prettyPair = (pair: [number, number]) =>
 export function ZsaWorkspace() {
   const [activeView, setActiveView] = useState<WorkspaceView>("overview");
   const [provider, setProvider] = useState("");
+  const [sourceName, setSourceName] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [preview, setPreview] = useState<ZsaParseResult | null>(null);
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
   const [groups, setGroups] = useState<ZsaConfirmedGroup[]>([]);
+  const [sourceOccurrences, setSourceOccurrences] = useState<OccurrenceRow[]>([]);
+  const [groupRecords, setGroupRecords] = useState<GroupRow[]>([]);
   const [winnerRows, setWinnerRows] = useState<WinnerRow[]>([]);
   const [winnerRevisionRows, setWinnerRevisionRows] = useState<WinnerRevisionRow[]>([]);
+  const [savedBatches, setSavedBatches] = useState<SavedBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [minimumOccurrences, setMinimumOccurrences] = useState("2");
   const [minimumGames, setMinimumGames] = useState("1");
@@ -160,33 +177,52 @@ export function ZsaWorkspace() {
   const [winnersInput, setWinnersInput] = useState("");
   const [winnerPositionsInput, setWinnerPositionsInput] = useState("");
   const [caseRow, setCaseRow] = useState<ValidationRow | null>(null);
+  const [validationCases, setValidationCases] = useState<ValidationRow[]>([]);
   const [caseLine3, setCaseLine3] = useState("");
   const [casePositions, setCasePositions] = useState("");
+  const [newCaseName, setNewCaseName] = useState("");
+  const [newCaseGame, setNewCaseGame] = useState("");
+  const [newCaseProvider, setNewCaseProvider] = useState("");
+  const [newCaseLine2, setNewCaseLine2] = useState("");
+  const [newCaseWinners, setNewCaseWinners] = useState("");
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([]);
   const [savedRunName, setSavedRunName] = useState("ZSA research snapshot");
   const [loadError, setLoadError] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const loadWorkspace = async () => {
+  const loadWorkspace = useCallback(async () => {
     setLoading(true);
-    const [groupsResult, occurrencesResult, winnersResult, revisionsResult, casesResult, runsResult] =
-      await Promise.all([
-        supabase.from("zsa_groups").select("*").order("game_name").order("group_sequence"),
-        supabase.from("zsa_source_occurrences").select("*").order("source_order"),
-        supabase.from("zsa_winning_results").select("*"),
-        supabase.from("zsa_winning_result_revisions").select("*"),
-        supabase
-          .from("zsa_validation_cases")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(1),
-        supabase
-          .from("zsa_analysis_runs")
-          .select("id, name, dataset_version, created_at, result_summary, dataset_snapshot")
-          .order("created_at", { ascending: false })
-          .limit(20),
-      ]);
+    const [
+      groupsResult,
+      occurrencesResult,
+      winnersResult,
+      revisionsResult,
+      casesResult,
+      runsResult,
+      batchesResult,
+    ] = await Promise.all([
+      supabase.from("zsa_groups").select("*").order("game_name").order("group_sequence"),
+      supabase.from("zsa_source_occurrences").select("*").order("source_order"),
+      supabase.from("zsa_winning_results").select("*"),
+      supabase.from("zsa_winning_result_revisions").select("*"),
+      supabase
+        .from("zsa_validation_cases")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("zsa_analysis_runs")
+        .select("id, name, dataset_version, created_at, result_summary, dataset_snapshot")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("import_batches")
+        .select(
+          "id, provider, source_name, raw_text, games_detected, draws_detected, draws_rejected, status, created_at",
+        )
+        .order("created_at", { ascending: false }),
+    ]);
     const failedRead = [
       groupsResult,
       occurrencesResult,
@@ -194,6 +230,7 @@ export function ZsaWorkspace() {
       revisionsResult,
       casesResult,
       runsResult,
+      batchesResult,
     ].find((result) => result.error)?.error;
     if (failedRead)
       setLoadError(
@@ -201,6 +238,7 @@ export function ZsaWorkspace() {
       );
     else setLoadError("");
     const occurrences = (occurrencesResult.data ?? []) as OccurrenceRow[];
+    const sourceGroupRows = (groupsResult.data ?? []) as GroupRow[];
     const occurrenceById = new Map(occurrences.map((row) => [row.id, row]));
     const winningRows = (winnersResult.data ?? []) as WinnerRow[];
     const winningByGroup = new Map(
@@ -208,7 +246,7 @@ export function ZsaWorkspace() {
         .filter((item) => item.confirmation_status === "confirmed")
         .map((item) => [item.group_id, item]),
     );
-    const mappedGroups = ((groupsResult.data ?? []) as GroupRow[]).map((row) => {
+    const mappedGroups = sourceGroupRows.map((row) => {
       const line1 = row.line1_occurrence_id
         ? occurrenceById.get(row.line1_occurrence_id)
         : undefined;
@@ -233,25 +271,52 @@ export function ZsaWorkspace() {
         line3: positionValues(line3?.position_values ?? null),
         line2DrawNumber: line2?.draw_number ?? null,
         line3DrawNumber: line3?.draw_number ?? null,
+        line1DrawNumber: line1?.draw_number ?? null,
+        sourceBatchId: row.import_batch_id,
+        sourceReference: row.source_reference,
+        sourceOrder:
+          line1?.source_order ?? line2?.source_order ?? line3?.source_order ?? row.group_sequence,
+        sourceLines: [
+          line1?.source_line_start ?? null,
+          line2?.source_line_start ?? null,
+          line3?.source_line_start ?? null,
+        ],
+        sourceTexts: [
+          line1?.source_text ?? null,
+          line2?.source_text ?? null,
+          line3?.source_text ?? null,
+        ],
+        sourceOccurrenceIds: [line1?.id ?? null, line2?.id ?? null, line3?.id ?? null],
+        sourceDrawNumbers: [
+          line1?.draw_number ?? null,
+          line2?.draw_number ?? null,
+          line3?.draw_number ?? null,
+        ],
         winningNumbers: winner?.winning_numbers ?? null,
         winningPositions: winner?.winning_positions ?? null,
         winnerConfirmed: Boolean(winner),
       } satisfies ZsaConfirmedGroup;
     });
     setGroups(mappedGroups);
+    setSourceOccurrences(occurrences);
+    setGroupRecords(sourceGroupRows);
     setWinnerRows(winningRows);
     setWinnerRevisionRows((revisionsResult.data ?? []) as WinnerRevisionRow[]);
-    const firstCase = ((casesResult.data ?? []) as ValidationRow[])[0] ?? null;
-    setCaseRow(firstCase);
-    setCaseLine3(firstCase?.line3_values?.map(formatZsaNumber).join(" ") ?? "");
-    setCasePositions(firstCase?.winning_positions?.join(" ") ?? "");
+    setSavedBatches((batchesResult.data ?? []) as SavedBatch[]);
+    const loadedCases = (casesResult.data ?? []) as ValidationRow[];
+    setValidationCases(loadedCases);
+    const selectedCase =
+      loadedCases.find((item) => item.id === caseRow?.id) ?? loadedCases[0] ?? null;
+    setCaseRow(selectedCase);
+    setCaseLine3(selectedCase?.line3_values?.map(formatZsaNumber).join(" ") ?? "");
+    setCasePositions(selectedCase?.winning_positions?.join(" ") ?? "");
     setSavedRuns((runsResult.data ?? []) as SavedRun[]);
     setLoading(false);
-  };
+  }, [caseRow?.id]);
 
   useEffect(() => {
     void loadWorkspace();
-  }, []);
+  }, [loadWorkspace]);
 
   const analysis = useMemo(
     () =>
@@ -331,7 +396,8 @@ export function ZsaWorkspace() {
       {
         p_batch_id: batchId,
         p_provider: preview.provider,
-        p_source_name: "ZSA source import",
+        p_source_name: sourceName.trim() || "Pasted ZSA source",
+        p_source_reference: sourceName.trim(),
         p_raw_text: preview.rawText,
         p_occurrences: occurrencesPayload,
         p_groups: groupsPayload,
@@ -345,6 +411,7 @@ export function ZsaWorkspace() {
       return;
     }
     setSourceText("");
+    setSourceName("");
     setPreview(null);
     setStatus(
       `Saved ${preview.records.length} source records and ${preview.groups.length} confirmed group boundaries. Invalid and incomplete records remain reviewable and are excluded from analysis.`,
@@ -388,46 +455,23 @@ export function ZsaWorkspace() {
     if (
       prior?.confirmation_status === "confirmed" &&
       (prior.winning_numbers.join(",") !== winningNumbers.join(",") ||
-        (prior.winning_positions?.join(",") ?? "") !== (rawPositions?.join(",") ?? ""))
+        Boolean(
+          prior.winning_positions &&
+          (!rawPositions || prior.winning_positions.join(",") !== rawPositions.join(",")),
+        ))
     ) {
-      const { error: versionError } = await supabase
-        .from("zsa_winning_result_revisions")
-        .insert({
-          confirmed_result_id: prior.id,
-          group_id: group.id,
-          proposed_winning_numbers: winningNumbers,
-          proposed_winning_positions: rawPositions,
-          review_status: "requires_review",
-          source_text: "Correction submitted for shared review; original confirmation is preserved.",
+      const { error: versionError } = await supabase.from("zsa_winning_result_revisions").insert({
+        confirmed_result_id: prior.id,
+        group_id: group.id,
+        proposed_winning_numbers: winningNumbers,
+        proposed_winning_positions: rawPositions,
+        review_status: "requires_review",
+        source_text: "Correction submitted for shared review; original confirmation is preserved.",
       });
       setStatus(
         versionError
           ? "The correction evidence could not be retained; the prior confirmed result remains unchanged."
           : "Correction saved as a separate review record; the prior confirmed result remains unchanged.",
-      );
-      setBusy(false);
-      if (!versionError) await loadWorkspace();
-      return;
-    }
-    if (
-      prior?.confirmation_status === "confirmed" &&
-      rawPositions &&
-      (prior.winning_positions?.join(",") ?? "") !== rawPositions.join(",")
-    ) {
-      const { error: versionError } = await supabase
-        .from("zsa_winning_result_revisions")
-        .insert({
-          confirmed_result_id: prior.id,
-          group_id: group.id,
-          proposed_winning_numbers: winningNumbers,
-          proposed_winning_positions: rawPositions,
-          review_status: "requires_review",
-          source_text: "Position correction submitted for shared review; original confirmation is preserved.",
-      });
-      setStatus(
-        versionError
-          ? "The position correction could not be retained; the prior confirmed result remains unchanged."
-          : "Position correction saved as separate review evidence; the prior confirmed result remains unchanged.",
       );
       setBusy(false);
       if (!versionError) await loadWorkspace();
@@ -491,6 +535,10 @@ export function ZsaWorkspace() {
 
   const saveValidationUpdate = async () => {
     if (!caseRow) return;
+    if (caseRow.validation_status === "evaluated") {
+      setStatus("This evaluation is frozen. Create a new validation case to record another draw.");
+      return;
+    }
     const values = caseLine3.trim() ? parseList(caseLine3, 10) : null;
     const positions = casePositions.trim() ? parseList(casePositions, 5) : null;
     if (caseLine3.trim() && !values) {
@@ -534,6 +582,56 @@ export function ZsaWorkspace() {
     setBusy(false);
   };
 
+  const createValidationCase = async () => {
+    const line2Values = parseList(newCaseLine2, 10);
+    const winningNumbers = parseList(newCaseWinners, 5);
+    if (
+      !newCaseName.trim() ||
+      !newCaseGame.trim() ||
+      !newCaseProvider.trim() ||
+      !line2Values ||
+      !winningNumbers ||
+      new Set(winningNumbers).size !== 5
+    ) {
+      setStatus(
+        "Enter a case name, game, provider, ten Line 2 values, and five distinct known winners.",
+      );
+      return;
+    }
+    setBusy(true);
+    const { data, error } = await supabase
+      .from("zsa_validation_cases")
+      .insert({
+        case_name: newCaseName.trim(),
+        game_name: newCaseGame.trim(),
+        provider: newCaseProvider.trim(),
+        line2_values: line2Values,
+        winning_numbers: winningNumbers,
+        line3_values: null,
+        winning_positions: null,
+        validation_status: "awaiting_line3",
+        analysis_snapshot: {},
+      })
+      .select("*")
+      .single();
+    if (error || !data) setStatus("The new validation case could not be saved.");
+    else {
+      setCaseRow(data as ValidationRow);
+      setValidationCases((existing) => [data as ValidationRow, ...existing]);
+      setCaseLine3("");
+      setCasePositions("");
+      setNewCaseName("");
+      setNewCaseGame("");
+      setNewCaseProvider("");
+      setNewCaseLine2("");
+      setNewCaseWinners("");
+      setStatus(
+        "Created a separate validation case; it will not enter the historical training data.",
+      );
+    }
+    setBusy(false);
+  };
+
   const evaluateValidation = async () => {
     if (!caseRow?.line3_values || !caseRow.winning_positions) {
       setStatus(
@@ -542,7 +640,9 @@ export function ZsaWorkspace() {
       return;
     }
     if (caseRow.validation_status === "evaluated") {
-      setStatus("This evaluation is already frozen. Start a new validation case for another comparison.");
+      setStatus(
+        "This evaluation is already frozen. Start a new validation case for another comparison.",
+      );
       return;
     }
     const baseline = createZsaValidationBaseline(groups, analysis, new Date().toISOString());
@@ -566,6 +666,7 @@ export function ZsaWorkspace() {
   const nav: Array<{ key: WorkspaceView; label: string; icon: typeof Activity }> = [
     { key: "overview", label: "Overview", icon: Activity },
     { key: "import", label: "Import & data quality", icon: Upload },
+    { key: "history", label: "Source history", icon: FileClock },
     { key: "pairs", label: "Pair recurrence", icon: Database },
     { key: "positions", label: "Position & number analysis", icon: Filter },
     { key: "mappings", label: "Exact mapping", icon: ArrowRight },
@@ -664,6 +765,8 @@ export function ZsaWorkspace() {
             <ImportView
               provider={provider}
               setProvider={setProvider}
+              sourceName={sourceName}
+              setSourceName={setSourceName}
               sourceText={sourceText}
               setSourceText={setSourceText}
               preview={preview}
@@ -683,6 +786,13 @@ export function ZsaWorkspace() {
               revisions={winnerRevisionRows}
             />
           )}
+          {activeView === "history" && (
+            <SourceHistoryView
+              batches={savedBatches}
+              groups={groupRecords}
+              occurrences={sourceOccurrences}
+            />
+          )}
           {activeView === "pairs" && (
             <PairView
               analysis={analysis}
@@ -698,12 +808,32 @@ export function ZsaWorkspace() {
           {activeView === "validation" && (
             <ValidationView
               caseRow={caseRow}
+              cases={validationCases}
+              selectCase={(id) => {
+                const nextCase = validationCases.find((item) => item.id === id);
+                if (nextCase) {
+                  setCaseRow(nextCase);
+                  setCaseLine3(nextCase.line3_values?.map(formatZsaNumber).join(" ") ?? "");
+                  setCasePositions(nextCase.winning_positions?.join(" ") ?? "");
+                }
+              }}
               line3={caseLine3}
               setLine3={setCaseLine3}
               positions={casePositions}
               setPositions={setCasePositions}
               save={() => void saveValidationUpdate()}
               evaluate={() => void evaluateValidation()}
+              createCase={() => void createValidationCase()}
+              newCaseName={newCaseName}
+              setNewCaseName={setNewCaseName}
+              newCaseGame={newCaseGame}
+              setNewCaseGame={setNewCaseGame}
+              newCaseProvider={newCaseProvider}
+              setNewCaseProvider={setNewCaseProvider}
+              newCaseLine2={newCaseLine2}
+              setNewCaseLine2={setNewCaseLine2}
+              newCaseWinners={newCaseWinners}
+              setNewCaseWinners={setNewCaseWinners}
               busy={busy}
             />
           )}
@@ -729,7 +859,6 @@ function Overview({
   onView,
   onSave,
   busy,
-  revisions,
 }: {
   analysis: ZsaAnalysisResult;
   groups: ZsaConfirmedGroup[];
@@ -823,6 +952,8 @@ function Overview({
 function ImportView(props: {
   provider: string;
   setProvider: (value: string) => void;
+  sourceName: string;
+  setSourceName: (value: string) => void;
   sourceText: string;
   setSourceText: (value: string) => void;
   preview: ZsaParseResult | null;
@@ -866,6 +997,16 @@ function ImportView(props: {
               value={props.provider}
               onChange={(event) => props.setProvider(event.target.value)}
               placeholder="Enter provider name"
+            />
+          </div>
+          <div className="max-w-sm space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Source file or reference
+            </label>
+            <Input
+              value={props.sourceName}
+              onChange={(event) => props.setSourceName(event.target.value)}
+              placeholder="File name or source reference"
             />
           </div>
           <Textarea
@@ -1050,7 +1191,8 @@ function ImportView(props: {
                       : " — positions unconfirmed"}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Submitted {new Date(revision.created_at).toLocaleString()} · original confirmation retained
+                    Submitted {new Date(revision.created_at).toLocaleString()} · original
+                    confirmation retained
                   </div>
                 </div>
                 <Badge variant="outline">{revision.review_status.replaceAll("_", " ")}</Badge>
@@ -1058,6 +1200,139 @@ function ImportView(props: {
             ))}
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+}
+
+function SourceHistoryView({
+  batches,
+  groups,
+  occurrences,
+}: {
+  batches: SavedBatch[];
+  groups: GroupRow[];
+  occurrences: OccurrenceRow[];
+}) {
+  const groupsByBatch = new Map<string, GroupRow[]>();
+  const occurrencesByBatch = new Map<string, OccurrenceRow[]>();
+  for (const group of groups) {
+    if (!group.import_batch_id) continue;
+    const list = groupsByBatch.get(group.import_batch_id) ?? [];
+    list.push(group);
+    groupsByBatch.set(group.import_batch_id, list);
+  }
+  for (const occurrence of occurrences) {
+    if (!occurrence.import_batch_id) continue;
+    const list = occurrencesByBatch.get(occurrence.import_batch_id) ?? [];
+    list.push(occurrence);
+    occurrencesByBatch.set(occurrence.import_batch_id, list);
+  }
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold">ZSA source history</h2>
+        <p className="text-sm text-muted-foreground">
+          Original pasted text, source references, and reviewed groups remain linked to each import.
+        </p>
+      </div>
+      {batches
+        .filter((batch) => groupsByBatch.has(batch.id) || occurrencesByBatch.has(batch.id))
+        .map((batch) => {
+          const batchGroups = groupsByBatch.get(batch.id) ?? [];
+          const batchOccurrences = occurrencesByBatch.get(batch.id) ?? [];
+          return (
+            <details key={batch.id} className="border border-border">
+              <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <span className="font-medium">
+                  {batch.source_name || "Pasted ZSA source"} · {batch.provider}
+                </span>
+                <span className="flex gap-2">
+                  <Badge variant="outline">{batchGroups.length} groups</Badge>
+                  <Badge variant="outline">{batchOccurrences.length} lines</Badge>
+                  <Badge variant="outline">{batch.draws_rejected} flagged</Badge>
+                </span>
+              </summary>
+              <div className="space-y-4 border-t border-border p-4">
+                <div className="text-xs text-muted-foreground">
+                  Imported {new Date(batch.created_at).toLocaleString()} · {batch.status}
+                </div>
+                {batchGroups.map((group) => (
+                  <div key={group.id} className="border-b border-border pb-3 text-sm">
+                    <div className="font-medium">
+                      {group.game_name} · group {group.group_sequence} · {group.completeness_status}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Source reference: {group.source_reference || "not provided"} · provider:{" "}
+                      {group.provider} · date: {group.draw_date || "not supplied"}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Linked source lines:{" "}
+                      {[
+                        group.line1_occurrence_id,
+                        group.line2_occurrence_id,
+                        group.line3_occurrence_id,
+                      ]
+                        .map((id) =>
+                          id
+                            ? (batchOccurrences.find((record) => record.id === id)
+                                ?.source_line_start ?? "?")
+                            : "missing",
+                        )
+                        .join(" · ")}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {[
+                        group.line1_occurrence_id,
+                        group.line2_occurrence_id,
+                        group.line3_occurrence_id,
+                      ].map((id, index) => {
+                        const record = id
+                          ? batchOccurrences.find((item) => item.id === id)
+                          : undefined;
+                        return (
+                          <div
+                            key={`${group.id}-source-${index}`}
+                            className="border border-border/70 p-2 text-xs"
+                          >
+                            <div className="font-medium">
+                              Line {index + 1} · draw {record?.draw_number ?? "unavailable"}
+                            </div>
+                            <div className="mt-1 grid grid-cols-5 gap-1 font-mono">
+                              {record?.position_values?.map((number, position) => (
+                                <span
+                                  key={position}
+                                  className="border border-border/60 px-1 py-0.5 text-center"
+                                >
+                                  P{position + 1}:{formatZsaNumber(number)}
+                                </span>
+                              )) ?? (
+                                <span className="text-muted-foreground">Values unavailable</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <details className="border-t border-border pt-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    View exact pasted source text ({batchOccurrences.length} retained records)
+                  </summary>
+                  <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-3 text-xs">
+                    {batch.raw_text}
+                  </pre>
+                </details>
+              </div>
+            </details>
+          );
+        })}
+      {batches.length === 0 && (
+        <Empty
+          title="No ZSA source imports"
+          description="Confirmed ZSA source files will appear here with their original text and group links."
+        />
       )}
     </div>
   );
@@ -1177,10 +1452,44 @@ function EvidenceRows({ pair }: { pair: ZsaAnalysisResult["pairs"][number] }) {
             {prettyPair(item.winningNumbers)} · positions{" "}
             {item.winningPositions?.join(", ") ?? "unconfirmed"}
           </div>
-          <div>
-            <div className="text-muted-foreground">Line 2 source</div>
-            <span className="font-mono">{item.line2.map(formatZsaNumber).join(" ")}</span>
-          </div>
+          <details className="border-t border-border pt-2 md:col-span-4">
+            <summary className="cursor-pointer text-xs font-medium">
+              View full source evidence
+            </summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {[item.line1, item.line2, item.line3].map((values, lineIndex) => (
+                <div key={`${item.groupId}-line-${lineIndex}`} className="border border-border p-3">
+                  <div className="text-xs font-medium">
+                    Line {lineIndex + 1} · draw{" "}
+                    {item.sourceDrawNumbers[lineIndex] ?? "number unavailable"} · source line{" "}
+                    {item.sourceLines[lineIndex] ?? "unlinked"}
+                  </div>
+                  <div className="mt-2 grid grid-cols-5 gap-1 font-mono text-xs">
+                    {values.map((number, positionIndex) => (
+                      <span
+                        key={`${positionIndex}-${number}`}
+                        className="border border-border/60 px-1 py-1 text-center"
+                      >
+                        P{positionIndex + 1}
+                        <br />
+                        {formatZsaNumber(number)}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2 break-words font-mono text-[10px] text-muted-foreground">
+                    {item.sourceTexts[lineIndex] ?? "Original text unavailable"}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground">
+              Provider: {item.provider} · batch: {item.sourceBatchId ?? "not linked"} · source:{" "}
+              {item.sourceReference ?? "not supplied"} · source order: {item.sourceOrder}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Occurrence IDs: {item.sourceOccurrenceIds.map((id) => id ?? "not linked").join(" · ")}
+            </div>
+          </details>
         </div>
       ))}
     </div>
@@ -1302,133 +1611,229 @@ function CombinationView({ analysis }: { analysis: ZsaAnalysisResult }) {
 
 function ValidationView({
   caseRow,
+  cases,
+  selectCase,
   line3,
   setLine3,
   positions,
   setPositions,
   save,
   evaluate,
+  createCase,
+  newCaseName,
+  setNewCaseName,
+  newCaseGame,
+  setNewCaseGame,
+  newCaseProvider,
+  setNewCaseProvider,
+  newCaseLine2,
+  setNewCaseLine2,
+  newCaseWinners,
+  setNewCaseWinners,
   busy,
 }: {
   caseRow: ValidationRow | null;
+  cases: ValidationRow[];
+  selectCase: (id: string) => void;
   line3: string;
   setLine3: (value: string) => void;
   positions: string;
   setPositions: (value: string) => void;
   save: () => void;
   evaluate: () => void;
+  createCase: () => void;
+  newCaseName: string;
+  setNewCaseName: (value: string) => void;
+  newCaseGame: string;
+  setNewCaseGame: (value: string) => void;
+  newCaseProvider: string;
+  setNewCaseProvider: (value: string) => void;
+  newCaseLine2: string;
+  setNewCaseLine2: (value: string) => void;
+  newCaseWinners: string;
+  setNewCaseWinners: (value: string) => void;
   busy: boolean;
 }) {
-  if (!caseRow)
-    return (
-      <Empty
-        title="Validation Case 001 is unavailable"
-        description="The separate live-validation record could not be loaded."
-      />
-    );
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-base">{caseRow.case_name}</CardTitle>
-          <Badge variant="outline">{caseRow.validation_status.replaceAll("_", " ")}</Badge>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">New live-validation case</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Each case is isolated from the historical training records and can be evaluated only
+            once.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <Input
+            value={newCaseName}
+            onChange={(event) => setNewCaseName(event.target.value)}
+            placeholder="Case name"
+          />
+          <Input
+            value={newCaseGame}
+            onChange={(event) => setNewCaseGame(event.target.value)}
+            placeholder="Game name"
+          />
+          <Input
+            value={newCaseProvider}
+            onChange={(event) => setNewCaseProvider(event.target.value)}
+            placeholder="Provider"
+          />
+          <Input
+            value={newCaseLine2}
+            onChange={(event) => setNewCaseLine2(event.target.value)}
+            placeholder="10 Line 2 values"
+          />
+          <Input
+            value={newCaseWinners}
+            onChange={(event) => setNewCaseWinners(event.target.value)}
+            placeholder="5 actual winners"
+          />
+          <Button onClick={createCase} disabled={busy}>
+            Create separate case
+          </Button>
+        </CardContent>
+      </Card>
+      {cases.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium">Validation case</span>
+          <Select value={caseRow?.id ?? ""} onValueChange={selectCase}>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue placeholder="Choose case" />
+            </SelectTrigger>
+            <SelectContent>
+              {cases.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.case_name} · {item.validation_status.replaceAll("_", " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <p className="text-sm text-muted-foreground">
-          This case is separate from historical groups and its result is not added to its analysis
-          baseline.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div>
-          <div className="text-xs text-muted-foreground">Line 2 source</div>
-          <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-10">
-            {caseRow.line2_values.map((number, index) => (
-              <div
-                className="border border-border p-2 text-center font-mono"
-                key={`${index}-${number}`}
-              >
-                <div className="text-[10px] text-muted-foreground">P{index + 1}</div>
-                {formatZsaNumber(number)}
+      )}
+      {!caseRow && (
+        <Empty
+          title="No validation case selected"
+          description="Create a case above, or select an existing case."
+        />
+      )}
+      {caseRow && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-base">{caseRow.case_name}</CardTitle>
+              <Badge variant="outline">{caseRow.validation_status.replaceAll("_", " ")}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              This case is separate from historical groups and its result is not added to its
+              analysis baseline.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div>
+              <div className="text-xs text-muted-foreground">Line 2 source</div>
+              <div className="mt-2 grid grid-cols-5 gap-2 sm:grid-cols-10">
+                {caseRow.line2_values.map((number, index) => (
+                  <div
+                    className="border border-border p-2 text-center font-mono"
+                    key={`${index}-${number}`}
+                  >
+                    <div className="text-[10px] text-muted-foreground">P{index + 1}</div>
+                    {formatZsaNumber(number)}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-muted-foreground">Confirmed actual winners</div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {caseRow.winning_numbers.map((number) => (
-              <Badge variant="outline" key={number}>
-                {formatZsaNumber(number)}
-              </Badge>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">
-              Add Line 3 candidates when available
-            </label>
-            <Input
-              value={line3}
-              onChange={(event) => setLine3(event.target.value)}
-              placeholder="Ten candidate values"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">Confirm winner positions</label>
-            <Input
-              value={positions}
-              onChange={(event) => setPositions(event.target.value)}
-              placeholder="Five positions, in winner order"
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-muted-foreground">
-            Current Line 3:{" "}
-            {caseRow.line3_values
-              ? caseRow.line3_values.map(formatZsaNumber).join(" ")
-              : "Not supplied; no values invented."}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={save} disabled={busy}>
-              Save validation details
-            </Button>
-            <Button
-              onClick={evaluate}
-              disabled={busy || !caseRow.line3_values || !caseRow.winning_positions}
-            >
-              Compare with frozen baseline
-            </Button>
-          </div>
-        </div>
-        {caseRow.validation_status === "evaluated" && (
-          <div className="border-t border-border pt-4 text-sm">
-            <div className="font-medium">Saved validation comparison</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(
-                (caseRow.analysis_snapshot["actualWinningPairs"] as string[] | undefined) ?? []
-              ).map((pair) => (
-                <Badge
-                  key={pair}
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Confirmed actual winners</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {caseRow.winning_numbers.map((number) => (
+                  <Badge variant="outline" key={number}>
+                    {formatZsaNumber(number)}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">
+                  Add Line 3 candidates when available
+                </label>
+                <Input
+                  value={line3}
+                  onChange={(event) => setLine3(event.target.value)}
+                  disabled={caseRow.validation_status === "evaluated"}
+                  placeholder="Ten candidate values"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Confirm winner positions</label>
+                <Input
+                  value={positions}
+                  onChange={(event) => setPositions(event.target.value)}
+                  disabled={caseRow.validation_status === "evaluated"}
+                  placeholder="Five positions, in winner order"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground">
+                Current Line 3:{" "}
+                {caseRow.line3_values
+                  ? caseRow.line3_values.map(formatZsaNumber).join(" ")
+                  : "Not supplied; no values invented."}
+              </div>
+              <div className="flex gap-2">
+                <Button
                   variant="outline"
-                  className={
-                    (
-                      (caseRow.analysis_snapshot["historicallyObservedWinningPairs"] as
-                        string[] | undefined) ?? []
-                    ).includes(pair)
-                      ? "border-primary/40 text-primary"
-                      : ""
+                  onClick={save}
+                  disabled={busy || caseRow.validation_status === "evaluated"}
+                >
+                  Save validation details
+                </Button>
+                <Button
+                  onClick={evaluate}
+                  disabled={
+                    busy ||
+                    caseRow.validation_status === "evaluated" ||
+                    !caseRow.line3_values ||
+                    !caseRow.winning_positions
                   }
                 >
-                  {pair}
-                </Badge>
-              ))}
+                  Compare with frozen baseline
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            {caseRow.validation_status === "evaluated" && (
+              <div className="border-t border-border pt-4 text-sm">
+                <div className="font-medium">Saved validation comparison</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(
+                    (caseRow.analysis_snapshot["actualWinningPairs"] as string[] | undefined) ?? []
+                  ).map((pair) => (
+                    <Badge
+                      key={pair}
+                      variant="outline"
+                      className={
+                        (
+                          (caseRow.analysis_snapshot["historicallyObservedWinningPairs"] as
+                            string[] | undefined) ?? []
+                        ).includes(pair)
+                          ? "border-primary/40 text-primary"
+                          : ""
+                      }
+                    >
+                      {pair}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -1444,7 +1849,6 @@ function ReportsView({
   setName: (value: string) => void;
   save: () => void;
   busy: boolean;
-  revisions: WinnerRevisionRow[];
 }) {
   return (
     <div className="space-y-5">
@@ -1459,30 +1863,77 @@ function ReportsView({
         </Button>
       </div>
       <div className="space-y-2">
-        {runs.map((run) => (
-          <Card key={run.id}>
-            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div>
-                <div className="font-semibold">{run.name}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {new Date(run.created_at).toLocaleString()} · dataset{" "}
-                  {run.dataset_version.slice(0, 24)}
+        {runs.map((run) => {
+          const savedPairs = Array.isArray(run.result_summary["pairs"])
+            ? (run.result_summary["pairs"] as ZsaAnalysisResult["pairs"])
+            : [];
+          const frozenGroups = Array.isArray(run.dataset_snapshot)
+            ? (run.dataset_snapshot as ZsaConfirmedGroup[])
+            : [];
+          return (
+            <Card key={run.id}>
+              <CardContent className="space-y-3 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{run.name}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {new Date(run.created_at).toLocaleString()} · dataset{" "}
+                      {run.dataset_version.slice(0, 24)}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline">{frozenGroups.length} groups</Badge>
+                    <Badge variant="outline">{savedPairs.length} pairs</Badge>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Badge variant="outline">
-                  {Number(run.result_summary["eligibleGroupCount"] ?? 0)} groups
-                </Badge>
-                <Badge variant="outline">
-                  {Array.isArray(run.result_summary["pairs"])
-                    ? run.result_summary["pairs"].length
-                    : 0}{" "}
-                  pairs
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <details className="border-t border-border pt-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Open frozen evidence
+                  </summary>
+                  <div className="mt-4 space-y-4">
+                    {savedPairs.map((pair) => (
+                      <div key={pair.key} className="border border-border p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-mono font-semibold">{prettyPair(pair.pair)}</span>
+                          <Badge variant="outline">
+                            ×{pair.occurrenceCount} · {pair.distinctGames} games
+                          </Badge>
+                        </div>
+                        <EvidenceRows pair={pair} />
+                      </div>
+                    ))}
+                    {frozenGroups.length > 0 && (
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-semibold">Frozen source groups</h3>
+                        {frozenGroups.map((group) => (
+                          <div key={group.id} className="border border-border px-3 py-2 text-xs">
+                            <div className="font-medium">
+                              {group.gameName} · group {group.groupSequence}
+                            </div>
+                            <div className="mt-1 font-mono text-muted-foreground">
+                              Line 2: {group.line2?.map(formatZsaNumber).join(" ") ?? "unavailable"}
+                            </div>
+                            <div className="font-mono text-muted-foreground">
+                              Line 3: {group.line3?.map(formatZsaNumber).join(" ") ?? "unavailable"}
+                            </div>
+                            <div className="text-muted-foreground">
+                              Winners:{" "}
+                              {group.winningNumbers?.map(formatZsaNumber).join(" · ") ??
+                                "unconfirmed"}
+                              {group.winningPositions
+                                ? ` · positions ${group.winningPositions.join(", ")}`
+                                : " · positions unconfirmed"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </CardContent>
+            </Card>
+          );
+        })}
         {runs.length === 0 && (
           <Empty
             title="No saved ZSA reports"

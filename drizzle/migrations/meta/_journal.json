@@ -36,6 +36,27 @@
       "when": 1794111265173,
       "tag": "0004_preserve_zsa_evidence_history",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794113235401,
+      "tag": "0005_freeze_zsa_confirmations_and_link_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794113269794,
+      "tag": "0006_attach_zsa_import_source_reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794113336650,
+      "tag": "0007_allow_confirmed_zsa_position_completion",
+      "breakpoints": true
     }
   ]
 }
