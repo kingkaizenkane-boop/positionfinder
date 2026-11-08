@@ -827,6 +827,8 @@ function Overview({
 function ImportView(props: {
   provider: string;
   setProvider: (value: string) => void;
+  sourceName: string;
+  setSourceName: (value: string) => void;
   sourceText: string;
   setSourceText: (value: string) => void;
   preview: ZsaParseResult | null;
@@ -870,6 +872,16 @@ function ImportView(props: {
               value={props.provider}
               onChange={(event) => props.setProvider(event.target.value)}
               placeholder="Enter provider name"
+            />
+          </div>
+          <div className="max-w-sm space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Source file or reference
+            </label>
+            <Input
+              value={props.sourceName}
+              onChange={(event) => props.setSourceName(event.target.value)}
+              placeholder="File name or source reference"
             />
           </div>
           <Textarea
