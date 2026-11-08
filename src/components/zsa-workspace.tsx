@@ -15,6 +15,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   analyzeZsa,
+  compareZsaValidation,
+  createZsaValidationBaseline,
   formatZsaNumber,
   parseZsaSource,
   type ZsaAnalysisResult,
@@ -84,6 +86,16 @@ type WinnerRow = {
   confirmation_status: string;
   result_date: string | null;
 };
+type WinnerRevisionRow = {
+  id: string;
+  group_id: string;
+  confirmed_result_id: string;
+  proposed_winning_numbers: number[];
+  proposed_winning_positions: number[] | null;
+  review_status: string;
+  source_text: string;
+  created_at: string;
+};
 type ValidationRow = {
   id: string;
   case_name: string;
@@ -140,6 +152,7 @@ export function ZsaWorkspace() {
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
   const [groups, setGroups] = useState<ZsaConfirmedGroup[]>([]);
   const [winnerRows, setWinnerRows] = useState<WinnerRow[]>([]);
+  const [winnerRevisionRows, setWinnerRevisionRows] = useState<WinnerRevisionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [minimumOccurrences, setMinimumOccurrences] = useState("2");
   const [minimumGames, setMinimumGames] = useState("1");
@@ -157,11 +170,12 @@ export function ZsaWorkspace() {
 
   const loadWorkspace = async () => {
     setLoading(true);
-    const [groupsResult, occurrencesResult, winnersResult, casesResult, runsResult] =
+    const [groupsResult, occurrencesResult, winnersResult, revisionsResult, casesResult, runsResult] =
       await Promise.all([
         supabase.from("zsa_groups").select("*").order("game_name").order("group_sequence"),
         supabase.from("zsa_source_occurrences").select("*").order("source_order"),
         supabase.from("zsa_winning_results").select("*"),
+        supabase.from("zsa_winning_result_revisions").select("*"),
         supabase
           .from("zsa_validation_cases")
           .select("*")
@@ -177,6 +191,7 @@ export function ZsaWorkspace() {
       groupsResult,
       occurrencesResult,
       winnersResult,
+      revisionsResult,
       casesResult,
       runsResult,
     ].find((result) => result.error)?.error;
@@ -225,6 +240,7 @@ export function ZsaWorkspace() {
     });
     setGroups(mappedGroups);
     setWinnerRows(winningRows);
+    setWinnerRevisionRows((revisionsResult.data ?? []) as WinnerRevisionRow[]);
     const firstCase = ((casesResult.data ?? []) as ValidationRow[])[0] ?? null;
     setCaseRow(firstCase);
     setCaseLine3(firstCase?.line3_values?.map(formatZsaNumber).join(" ") ?? "");
@@ -371,16 +387,18 @@ export function ZsaWorkspace() {
     const prior = winnerRows.find((item) => item.group_id === group.id);
     if (
       prior?.confirmation_status === "confirmed" &&
-      prior.winning_numbers.join(",") !== winningNumbers.join(",")
+      (prior.winning_numbers.join(",") !== winningNumbers.join(",") ||
+        (prior.winning_positions?.join(",") ?? "") !== (rawPositions?.join(",") ?? ""))
     ) {
-      const { error: versionError } = await supabase.from("zsa_winning_results").insert({
-        group_id: group.id,
-        winning_numbers: winningNumbers,
-        winning_positions: rawPositions,
-        confirmation_status: "requires_review",
-        result_date: group.drawDate,
-        source_type: "manual",
-        source_text: `Correction submission; prior confirmed result ${prior.id} preserved.`,
+      const { error: versionError } = await supabase
+        .from("zsa_winning_result_revisions")
+        .insert({
+          confirmed_result_id: prior.id,
+          group_id: group.id,
+          proposed_winning_numbers: winningNumbers,
+          proposed_winning_positions: rawPositions,
+          review_status: "requires_review",
+          source_text: "Correction submitted for shared review; original confirmation is preserved.",
       });
       setStatus(
         versionError
@@ -396,14 +414,15 @@ export function ZsaWorkspace() {
       rawPositions &&
       (prior.winning_positions?.join(",") ?? "") !== rawPositions.join(",")
     ) {
-      const { error: versionError } = await supabase.from("zsa_winning_results").insert({
-        group_id: group.id,
-        winning_numbers: winningNumbers,
-        winning_positions: rawPositions,
-        confirmation_status: "requires_review",
-        result_date: group.drawDate,
-        source_type: "manual",
-        source_text: `Position correction submission; prior confirmed result ${prior.id} preserved.`,
+      const { error: versionError } = await supabase
+        .from("zsa_winning_result_revisions")
+        .insert({
+          confirmed_result_id: prior.id,
+          group_id: group.id,
+          proposed_winning_numbers: winningNumbers,
+          proposed_winning_positions: rawPositions,
+          review_status: "requires_review",
+          source_text: "Position correction submitted for shared review; original confirmation is preserved.",
       });
       setStatus(
         versionError
@@ -522,26 +541,13 @@ export function ZsaWorkspace() {
       );
       return;
     }
-    const historicalPairs = new Set(analysis.pairs.map((pair) => pair.key));
-    const actualPairs: string[] = [];
-    for (let first = 0; first < caseRow.winning_numbers.length; first += 1) {
-      for (let second = first + 1; second < caseRow.winning_numbers.length; second += 1) {
-        const a = caseRow.winning_numbers[first];
-        const b = caseRow.winning_numbers[second];
-        if (a !== undefined && b !== undefined)
-          actualPairs.push([a, b].sort((left, right) => left - right).join("-"));
-      }
+    if (caseRow.validation_status === "evaluated") {
+      setStatus("This evaluation is already frozen. Start a new validation case for another comparison.");
+      return;
     }
-    const snapshot = {
-      baselineCapturedAt: new Date().toISOString(),
-      baselineGroupIds: groups.map((group) => group.id),
-      baselineGroups: groups.map((group) => ({ ...group })),
-      filters: analysis.filters,
-      baselineResults: analysis,
-      actualWinningPairs: actualPairs,
-      historicallyObservedWinningPairs: actualPairs.filter((pair) => historicalPairs.has(pair)),
-      note: "The validation case was excluded from its own historical baseline.",
-    };
+    const baseline = createZsaValidationBaseline(groups, analysis, new Date().toISOString());
+    const comparison = compareZsaValidation(baseline, caseRow.winning_numbers);
+    const snapshot = { ...baseline, ...comparison };
     setBusy(true);
     const result = await supabase
       .from("zsa_validation_cases")
@@ -674,6 +680,7 @@ export function ZsaWorkspace() {
               winnerPositionsInput={winnerPositionsInput}
               setWinnerPositionsInput={setWinnerPositionsInput}
               saveWinners={() => void saveWinners()}
+              revisions={winnerRevisionRows}
             />
           )}
           {activeView === "pairs" && (
@@ -722,6 +729,7 @@ function Overview({
   onView,
   onSave,
   busy,
+  revisions,
 }: {
   analysis: ZsaAnalysisResult;
   groups: ZsaConfirmedGroup[];
@@ -831,6 +839,7 @@ function ImportView(props: {
   winnerPositionsInput: string;
   setWinnerPositionsInput: (value: string) => void;
   saveWinners: () => void;
+  revisions: WinnerRevisionRow[];
 }) {
   const line2AvailableGroups = props.groups.filter(
     (group) => group.groupingConfirmed && group.line2 && group.line3,
@@ -1019,6 +1028,37 @@ function ImportView(props: {
           </div>
         </CardContent>
       </Card>
+      {props.revisions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Unresolved correction evidence</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              These submissions do not replace confirmed results or contribute to the analysis.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {props.revisions.map((revision) => (
+              <div
+                key={revision.id}
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 text-sm"
+              >
+                <div>
+                  <div className="font-mono">
+                    {revision.proposed_winning_numbers.map(formatZsaNumber).join(" · ")}
+                    {revision.proposed_winning_positions?.length
+                      ? ` — P${revision.proposed_winning_positions.join(", P")}`
+                      : " — positions unconfirmed"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Submitted {new Date(revision.created_at).toLocaleString()} · original confirmation retained
+                  </div>
+                </div>
+                <Badge variant="outline">{revision.review_status.replaceAll("_", " ")}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -1404,6 +1444,7 @@ function ReportsView({
   setName: (value: string) => void;
   save: () => void;
   busy: boolean;
+  revisions: WinnerRevisionRow[];
 }) {
   return (
     <div className="space-y-5">

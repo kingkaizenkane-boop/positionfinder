@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   analyzeZsa,
+  compareZsaValidation,
+  createZsaValidationBaseline,
   parseZsaSource,
   type ZsaConfirmedGroup,
   type ZsaNumbers,
@@ -237,5 +239,24 @@ describe("confirmed ZSA analysis", () => {
     expect(validationCase.winningNumbers).toEqual(winners);
     expect(validationCase.line3).toBeNull();
     expect(analyzeZsa([]).eligibleGroupCount).toBe(0);
+  });
+
+  it("freezes validation baselines and compares actual winning pairs without admitting the case", () => {
+    const historicalGroups = [group({ id: "historical-1" }), group({ id: "historical-2" })];
+    const baselineResults = analyzeZsa(historicalGroups, {
+      minimumOccurrences: 2,
+      minimumDistinctGames: 1,
+    });
+    const baseline = createZsaValidationBaseline(
+      historicalGroups,
+      baselineResults,
+      "2026-11-07T00:00:00.000Z",
+    );
+    const comparison = compareZsaValidation(baseline, [47, 57, 70, 27, 64]);
+
+    expect(baseline.baselineGroupIds).toEqual(["historical-1", "historical-2"]);
+    expect(baseline.baselineResults.eligibleGroupCount).toBe(2);
+    expect(comparison.actualWinningPairs).toHaveLength(10);
+    expect(comparison.historicallyObservedWinningPairs).toHaveLength(10);
   });
 });

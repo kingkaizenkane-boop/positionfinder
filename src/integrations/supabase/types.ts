@@ -561,6 +561,54 @@ export type Database = {
           },
         ]
       }
+      zsa_winning_result_revisions: {
+        Row: {
+          confirmed_result_id: string
+          created_at: string
+          group_id: string
+          id: string
+          proposed_winning_numbers: number[]
+          proposed_winning_positions: number[] | null
+          review_status: string
+          source_text: string
+        }
+        Insert: {
+          confirmed_result_id: string
+          created_at?: string
+          group_id: string
+          id?: string
+          proposed_winning_numbers: number[]
+          proposed_winning_positions?: number[] | null
+          review_status?: string
+          source_text: string
+        }
+        Update: {
+          confirmed_result_id?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          proposed_winning_numbers?: number[]
+          proposed_winning_positions?: number[] | null
+          review_status?: string
+          source_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zsa_winning_result_revisions_confirmed_result_id_fkey"
+            columns: ["confirmed_result_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_winning_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zsa_winning_result_revisions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "zsa_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zsa_winning_results: {
         Row: {
           confirmation_status: string
