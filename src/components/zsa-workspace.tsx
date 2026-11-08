@@ -715,7 +715,7 @@ export function ZsaWorkspace() {
           </Select>
         </div>
       </div>
-      <div className="flex gap-2 overflow-x-auto border-b border-border pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
         {nav.map(({ key, label, icon: Icon }) => (
           <Button
             key={key}
