@@ -71,6 +71,13 @@
       "when": 1794115244648,
       "tag": "0009_prevent_zsa_confirmation_status_reset",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794115305444,
+      "tag": "0010_lock_zsa_confirmations_except_position_completion",
+      "breakpoints": true
     }
   ]
 }
