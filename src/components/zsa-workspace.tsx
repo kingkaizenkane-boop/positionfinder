@@ -122,6 +122,7 @@ type SavedBatch = {
   id: string;
   provider: string;
   source_name: string | null;
+  raw_text: string;
   games_detected: number;
   draws_detected: number;
   draws_rejected: number;
@@ -212,7 +213,7 @@ export function ZsaWorkspace() {
           .limit(20),
         supabase
           .from("import_batches")
-          .select("id, provider, source_name, games_detected, draws_detected, draws_rejected, status, created_at")
+          .select("id, provider, source_name, raw_text, games_detected, draws_detected, draws_rejected, status, created_at")
           .order("created_at", { ascending: false })
           .limit(30),
       ]);
@@ -275,6 +276,7 @@ export function ZsaWorkspace() {
         ],
         sourceTexts: [line1?.source_text ?? null, line2?.source_text ?? null, line3?.source_text ?? null],
         sourceOccurrenceIds: [line1?.id ?? null, line2?.id ?? null, line3?.id ?? null],
+        sourceDrawNumbers: [line1?.draw_number ?? null, line2?.draw_number ?? null, line3?.draw_number ?? null],
         winningNumbers: winner?.winning_numbers ?? null,
         winningPositions: winner?.winning_positions ?? null,
         winnerConfirmed: Boolean(winner),
