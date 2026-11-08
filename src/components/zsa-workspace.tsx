@@ -784,6 +784,7 @@ export function ZsaWorkspace() {
               setWinnerPositionsInput={setWinnerPositionsInput}
               saveWinners={() => void saveWinners()}
               revisions={winnerRevisionRows}
+              revisions={winnerRevisionRows}
             />
           )}
           {activeView === "history" && (
@@ -970,6 +971,7 @@ function ImportView(props: {
   winnerPositionsInput: string;
   setWinnerPositionsInput: (value: string) => void;
   saveWinners: () => void;
+  revisions: WinnerRevisionRow[];
 }) {
   const line2AvailableGroups = props.groups.filter(
     (group) => group.groupingConfirmed && group.line2 && group.line3,
