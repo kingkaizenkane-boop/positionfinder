@@ -1122,7 +1122,7 @@ function ImportView(props: {
                   Object.fromEntries(
                     props.preview?.groups.map((group) => [
                       group.id,
-                      group.completeness === "complete",
+                      true,
                     ]) ?? [],
                   ),
                 )
