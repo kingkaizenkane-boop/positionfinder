@@ -368,6 +368,7 @@ export function ZsaWorkspace() {
         p_batch_id: batchId,
         p_provider: preview.provider,
         p_source_name: sourceName.trim() || "Pasted ZSA source",
+        p_source_reference: sourceName.trim(),
         p_raw_text: preview.rawText,
         p_occurrences: occurrencesPayload,
         p_groups: groupsPayload,
