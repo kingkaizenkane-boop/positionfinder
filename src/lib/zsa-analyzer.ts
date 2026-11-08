@@ -66,6 +66,7 @@ export type ZsaConfirmedGroup = {
   sourceLines?: [number | null, number | null, number | null];
   sourceTexts?: [string | null, string | null, string | null];
   sourceOccurrenceIds?: [string | null, string | null, string | null];
+  sourceDrawNumbers?: [number | null, number | null, number | null];
   winningNumbers: number[] | null;
   winningPositions: number[] | null;
   winnerConfirmed: boolean;
@@ -94,6 +95,7 @@ export type WinningPairEvidence = {
   sourceLines: [number | null, number | null, number | null];
   sourceTexts: [string | null, string | null, string | null];
   sourceOccurrenceIds: [string | null, string | null, string | null];
+  sourceDrawNumbers: [number | null, number | null, number | null];
   winningNumbers: [number, number];
   line1: ZsaNumbers;
   line2: ZsaNumbers;
@@ -545,6 +547,7 @@ export function analyzeZsa(
           sourceLines: group.sourceLines ?? [null, null, null],
           sourceTexts: group.sourceTexts ?? [null, null, null],
           sourceOccurrenceIds: group.sourceOccurrenceIds ?? [null, null, null],
+          sourceDrawNumbers: group.sourceDrawNumbers ?? [null, null, null],
           winningNumbers: pair,
           line1: group.line1,
           line2: group.line2,
