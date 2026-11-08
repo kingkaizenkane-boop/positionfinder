@@ -1027,6 +1027,37 @@ function ImportView(props: {
           </div>
         </CardContent>
       </Card>
+      {props.revisions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Unresolved correction evidence</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              These submissions do not replace confirmed results or contribute to the analysis.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {props.revisions.map((revision) => (
+              <div
+                key={revision.id}
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 text-sm"
+              >
+                <div>
+                  <div className="font-mono">
+                    {revision.proposed_winning_numbers.map(formatZsaNumber).join(" · ")}
+                    {revision.proposed_winning_positions?.length
+                      ? ` — P${revision.proposed_winning_positions.join(", P")}`
+                      : " — positions unconfirmed"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Submitted {new Date(revision.created_at).toLocaleString()} · original confirmation retained
+                  </div>
+                </div>
+                <Badge variant="outline">{revision.review_status.replaceAll("_", " ")}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
