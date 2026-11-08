@@ -680,6 +680,7 @@ export function ZsaWorkspace() {
               winnerPositionsInput={winnerPositionsInput}
               setWinnerPositionsInput={setWinnerPositionsInput}
               saveWinners={() => void saveWinners()}
+              revisions={winnerRevisionRows}
             />
           )}
           {activeView === "pairs" && (
