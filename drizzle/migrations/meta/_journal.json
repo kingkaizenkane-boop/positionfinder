@@ -43,6 +43,13 @@
       "when": 1794113235401,
       "tag": "0005_freeze_zsa_confirmations_and_link_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794113269794,
+      "tag": "0006_attach_zsa_import_source_reference",
+      "breakpoints": true
     }
   ]
 }
