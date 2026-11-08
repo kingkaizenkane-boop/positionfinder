@@ -13,3 +13,5 @@
 - [x] Enable and verify account-free shared testing access for reads, imports, saves, edits, and deletes (shared policies remain active until explicitly reverted)
 - [x] Add independent ZSA grouped-source ingestion, confirmed winner provenance, analysis engine, dashboard, immutable reports, and isolated live validation
 - [ ] Import original grouped historical source data into ZSA after the user supplies it; existing legacy draw rows are not a trustworthy substitute
+- [ ] Streamline named-game confirmation and atomic pipe-format winner ingestion without importing automatically
+- [ ] Qualify Line 3 numbers repeated within at least two game groups before tracing Line 2 positional evidence; verify regression tests and preview
