@@ -625,6 +625,7 @@ export function ZsaWorkspace() {
     if (error || !data) setStatus("The new validation case could not be saved.");
     else {
       setCaseRow(data as ValidationRow);
+      setValidationCases((existing) => [data as ValidationRow, ...existing]);
       setCaseLine3("");
       setCasePositions("");
       setNewCaseName("");
@@ -635,7 +636,6 @@ export function ZsaWorkspace() {
       setStatus(
         "Created a separate validation case; it will not enter the historical training data.",
       );
-      await loadWorkspace();
     }
     setBusy(false);
   };
