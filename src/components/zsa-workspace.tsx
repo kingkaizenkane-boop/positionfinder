@@ -1210,7 +1210,7 @@ function SourceHistoryView({ batches, groups, occurrences }: { batches: SavedBat
                 <div className="mt-1 text-xs text-muted-foreground">Source reference: {group.source_reference || "not provided"} · provider: {group.provider} · date: {group.draw_date || "not supplied"}</div>
                 <div className="mt-1 text-xs text-muted-foreground">Linked source lines: {[group.line1_occurrence_id, group.line2_occurrence_id, group.line3_occurrence_id].map((id) => id ? batchOccurrences.find((record) => record.id === id)?.source_line_start ?? "?" : "missing").join(" · ")}</div>
               </div>)}
-              <details className="border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">View original source text ({batchOccurrences.length} retained lines)</summary><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-3 text-xs">{batchOccurrences.sort((a, b) => a.source_order - b.source_order).map((record) => record.source_text).join("\n")}</pre></details>
+              <details className="border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">View exact pasted source text ({batchOccurrences.length} retained records)</summary><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-3 text-xs">{batch.raw_text}</pre></details>
             </div>
           </details>
         );
