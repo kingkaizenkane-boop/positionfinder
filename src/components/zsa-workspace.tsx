@@ -480,15 +480,19 @@ export function ZsaWorkspace() {
     const winnerPayload: WinningResultPayload = {
       group_id: group.id,
       winning_numbers: winningNumbers,
-      winning_positions: rawPositions,
+      winning_positions: prior?.winning_positions ?? rawPositions,
       confirmation_status: "confirmed",
       result_date: group.drawDate,
       source_type: "manual",
       source_text: "Explicit user confirmation in ZSA workspace",
       confirmed_at: new Date().toISOString(),
     };
-    const result = prior
-      ? await supabase.from("zsa_winning_results").update(winnerPayload).eq("id", prior.id)
+    const result = prior?.confirmation_status === "confirmed"
+      ? rawPositions && !prior.winning_positions
+        ? await supabase.from("zsa_winning_results").update({ winning_positions: rawPositions }).eq("id", prior.id)
+        : { error: null }
+      : prior
+        ? await supabase.from("zsa_winning_results").update(winnerPayload).eq("id", prior.id)
       : await supabase.from("zsa_winning_results").insert(winnerPayload);
     if (result.error) setStatus("The confirmed result could not be saved.");
     else {
