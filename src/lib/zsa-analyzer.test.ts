@@ -93,10 +93,10 @@ describe("ZSA source grouping parser", () => {
 });
 
 describe("confirmed ZSA analysis", () => {
-  it("generates ten unique unordered pairs from five confirmed winners", () => {
+  it("generates 45 unique unordered pairs from all ten Line 3 numbers", () => {
     const result = analyzeZsa([group()], { minimumOccurrences: 1, minimumDistinctGames: 1 });
-    expect(result.totalPairObservations).toBe(10);
-    expect(result.pairs).toHaveLength(10);
+    expect(result.totalPairObservations).toBe(45);
+    expect(result.pairs).toHaveLength(45);
     expect(result.pairs.map((item) => item.key)).toContain("47-57");
     expect(result.pairs.map((item) => item.key)).not.toContain("57-47");
   });
@@ -200,7 +200,7 @@ describe("confirmed ZSA analysis", () => {
     ]);
 
     expect(result.eligibleGroupCount).toBe(2);
-    expect(result.pairs).toHaveLength(10);
+    expect(result.pairs).toHaveLength(45);
     expect(result.exactMappings).toHaveLength(0);
   });
 

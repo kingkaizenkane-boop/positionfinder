@@ -579,7 +579,8 @@ export function analyzeZsa(
 
   for (const group of eligible) {
     if (!isConfirmedComplete(group)) continue;
-    const winners = group.winningNumbers;
+    // Line 3 pairs use all 10 positions (winning + machine numbers).
+    const winners = group.line3;
     if (!winners) continue;
     for (let first = 0; first < winners.length; first += 1) {
       for (let second = first + 1; second < winners.length; second += 1) {
@@ -609,12 +610,7 @@ export function analyzeZsa(
           line1: group.line1,
           line2: group.line2,
           line3: group.line3,
-          winningPositions: group.winningPositions
-            ? [
-                group.winningPositions[winners.indexOf(pair[0])] ?? 0,
-                group.winningPositions[winners.indexOf(pair[1])] ?? 0,
-              ]
-            : null,
+          winningPositions: [winners.indexOf(pair[0]) + 1, winners.indexOf(pair[1]) + 1],
         });
         pairEvidence.set(key, list);
       }
@@ -916,7 +912,7 @@ export function analyzeZsa(
     eligibleGroupCount: eligible.length,
     excludedGroupCount: groups.length - eligible.length,
     confirmedResultCount: eligible.length,
-    totalPairObservations: eligible.length * 10,
+    totalPairObservations: eligible.length * 45,
     pairs,
     positionFrequency,
     sourceNumberFrequency,

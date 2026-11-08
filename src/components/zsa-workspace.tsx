@@ -706,7 +706,7 @@ export function ZsaWorkspace() {
           </div>
           <h1 className="mt-2 text-3xl font-semibold">Historical relationships, fully evidenced</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Analyze confirmed winning pairs and their Line 2 positional evidence. Recurrence is
+            Analyze Line 3 pairs (all 10 numbers) and their Line 2 positional evidence. Recurrence is
             historical evidence, not a guarantee of future outcomes.
           </p>
         </div>
@@ -1671,7 +1671,7 @@ function PositionView({ analysis }: { analysis: ZsaAnalysisResult }) {
       {analysis.sourceNumberFrequency.length === 0 && (
         <Empty
           title="No confirmed Line 2 evidence"
-          description="Source frequencies appear after at least one winning pair meets the active threshold."
+          description="Source frequencies appear after at least one Line 3 pair meets the active threshold."
         />
       )}
     </div>
