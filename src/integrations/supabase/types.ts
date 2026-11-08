@@ -664,6 +664,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      save_zsa_confirmed_import: {
+        Args: {
+          p_batch_id: string
+          p_groups: Json
+          p_occurrences: Json
+          p_provider: string
+          p_raw_text: string
+          p_source_name: string
+          p_source_reference: string
+        }
+        Returns: string
+      }
       save_zsa_source_import:
         | {
             Args: {
