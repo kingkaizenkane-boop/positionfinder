@@ -1128,6 +1128,53 @@ function ImportView(props: {
   );
 }
 
+function SourceHistoryView({ batches, groups, occurrences }: { batches: SavedBatch[]; groups: GroupRow[]; occurrences: OccurrenceRow[] }) {
+  const groupsByBatch = new Map<string, GroupRow[]>();
+  const occurrencesByBatch = new Map<string, OccurrenceRow[]>();
+  for (const group of groups) {
+    if (!group.import_batch_id) continue;
+    const list = groupsByBatch.get(group.import_batch_id) ?? [];
+    list.push(group);
+    groupsByBatch.set(group.import_batch_id, list);
+  }
+  for (const occurrence of occurrences) {
+    if (!occurrence.import_batch_id) continue;
+    const list = occurrencesByBatch.get(occurrence.import_batch_id) ?? [];
+    list.push(occurrence);
+    occurrencesByBatch.set(occurrence.import_batch_id, list);
+  }
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold">ZSA source history</h2>
+        <p className="text-sm text-muted-foreground">Original pasted text, source references, and reviewed groups remain linked to each import.</p>
+      </div>
+      {batches.map((batch) => {
+        const batchGroups = groupsByBatch.get(batch.id) ?? [];
+        const batchOccurrences = occurrencesByBatch.get(batch.id) ?? [];
+        return (
+          <details key={batch.id} className="border border-border">
+            <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <span className="font-medium">{batch.source_name || "Pasted ZSA source"} · {batch.provider}</span>
+              <span className="flex gap-2"><Badge variant="outline">{batchGroups.length} groups</Badge><Badge variant="outline">{batchOccurrences.length} lines</Badge><Badge variant="outline">{batch.draws_rejected} flagged</Badge></span>
+            </summary>
+            <div className="space-y-4 border-t border-border p-4">
+              <div className="text-xs text-muted-foreground">Imported {new Date(batch.created_at).toLocaleString()} · {batch.status}</div>
+              {batchGroups.map((group) => <div key={group.id} className="border-b border-border pb-3 text-sm">
+                <div className="font-medium">{group.game_name} · group {group.group_sequence} · {group.completeness_status}</div>
+                <div className="mt-1 text-xs text-muted-foreground">Source reference: {group.source_reference || "not provided"} · provider: {group.provider} · date: {group.draw_date || "not supplied"}</div>
+                <div className="mt-1 text-xs text-muted-foreground">Linked source lines: {[group.line1_occurrence_id, group.line2_occurrence_id, group.line3_occurrence_id].map((id) => id ? batchOccurrences.find((record) => record.id === id)?.source_line_start ?? "?" : "missing").join(" · ")}</div>
+              </div>)}
+              <details className="border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">View original source text ({batchOccurrences.length} retained lines)</summary><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-3 text-xs">{batchOccurrences.sort((a, b) => a.source_order - b.source_order).map((record) => record.source_text).join("\n")}</pre></details>
+            </div>
+          </details>
+        );
+      })}
+      {batches.length === 0 && <Empty title="No ZSA source imports" description="Confirmed ZSA source files will appear here with their original text and group links." />}
+    </div>
+  );
+}
+
 function PairView({
   analysis,
   minimumOccurrences,
