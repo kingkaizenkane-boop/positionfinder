@@ -260,7 +260,6 @@ describe("confirmed ZSA analysis", () => {
     expect(comparison.historicallyObservedWinningPairs).toHaveLength(10);
   });
 
-
   it("retains source file, batch, line, and draw provenance on each occurrence", () => {
     const result = analyzeZsa(
       [
