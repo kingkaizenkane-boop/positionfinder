@@ -31,6 +31,7 @@ function group(overrides: Partial<ZsaConfirmedGroup> = {}): ZsaConfirmedGroup {
     winningPositions: positions,
     winnerConfirmed: true,
     ...overrides,
+    gameName: overrides.gameName ?? (overrides.gameId && overrides.gameId !== "game-a" ? `Game ${overrides.gameId}` : "Golden Chance Bazooka"),
   };
 }
 
@@ -318,6 +319,38 @@ describe("confirmed ZSA analysis", () => {
 });
 
 describe("target-first game-group qualification", () => {
+  it("combines evidence sets by named game even when their record game IDs differ", () => {
+    const result = analyzeZsa([
+      group({ id: "a1", gameId: "unlinked-a1", gameName: "Game A" }),
+      group({ id: "a2", gameId: "unlinked-a2", gameName: " game   a " }),
+      group({ id: "b1", gameId: "unlinked-b1", gameName: "Game B" }),
+      group({ id: "b2", gameId: "unlinked-b2", gameName: "Game B" }),
+    ]);
+    expect(result.targetNumberFrequency.find((item) => item.number === 47)).toMatchObject({
+      occurrences: 4, recurringGameGroups: 2, qualified: true,
+    });
+  });
+  it("does not trace a singleton game occurrence even when other games qualify the number", () => {
+    const result = analyzeZsa([
+      group({ id: "a1" }), group({ id: "a2" }),
+      group({ id: "b1", gameId: "b" }), group({ id: "b2", gameId: "b" }),
+      group({ id: "c1", gameId: "c", line2: [90, 45, 63, 77, 12, 68, 21, 83, 16, 4] }),
+    ]);
+    expect(result.targetNumberFrequency.find((item) => item.number === 47)?.recurringGameGroups).toBe(2);
+    expect(result.exactMappings.some((item) => item.sourceNumber === 90)).toBe(false);
+    expect(result.sourceNumberFrequency.some((item) => item.number === 90)).toBe(false);
+    expect(result.positionCombinations.some((item) => item.sourceNumbers.includes(90))).toBe(false);
+  });
+  it("never substitutes pooled singleton occurrences for within-game recurrence", () => {
+    const result = analyzeZsa([
+      group({ id: "a1" }), group({ id: "b1", gameId: "b" }), group({ id: "c1", gameId: "c" }),
+    ]);
+    expect(result.targetNumberFrequency.find((item) => item.number === 47)).toMatchObject({
+      occurrences: 3, recurringGameGroups: 0, qualified: false,
+    });
+    expect(result.exactMappings).toHaveLength(0);
+    expect(result.positionCombinations).toHaveLength(0);
+  });
   it("requires more than one Line 3 occurrence inside each of at least two game groups", () => {
     const rows = [group({ id: "a1" }), group({ id: "a2" }), group({ id: "b1", gameId: "b" })];
     const before = analyzeZsa(rows);

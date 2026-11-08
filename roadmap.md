@@ -15,3 +15,4 @@
 - [ ] Import supplied historical source data only after the user confirms the preview and exceptions; this build does not authorize an automatic import
 - [x] Streamline named-game confirmation and atomic pipe-format winner ingestion without importing automatically
 - [x] Qualify Line 3 numbers repeated within at least two game groups before tracing Line 2 positional evidence; verify regression tests and preview
+- [ ] Correct named-game counts and enforce locally qualified Line 3 evidence before inter-group tracing; verify tests and preview
