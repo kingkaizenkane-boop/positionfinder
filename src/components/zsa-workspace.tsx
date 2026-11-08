@@ -1475,32 +1475,74 @@ function CombinationView({ analysis }: { analysis: ZsaAnalysisResult }) {
 
 function ValidationView({
   caseRow,
+  cases,
+  selectCase,
   line3,
   setLine3,
   positions,
   setPositions,
   save,
   evaluate,
+  createCase,
+  newCaseName,
+  setNewCaseName,
+  newCaseGame,
+  setNewCaseGame,
+  newCaseProvider,
+  setNewCaseProvider,
+  newCaseLine2,
+  setNewCaseLine2,
+  newCaseWinners,
+  setNewCaseWinners,
   busy,
 }: {
   caseRow: ValidationRow | null;
+  cases: ValidationRow[];
+  selectCase: (id: string) => void;
   line3: string;
   setLine3: (value: string) => void;
   positions: string;
   setPositions: (value: string) => void;
   save: () => void;
   evaluate: () => void;
+  createCase: () => void;
+  newCaseName: string;
+  setNewCaseName: (value: string) => void;
+  newCaseGame: string;
+  setNewCaseGame: (value: string) => void;
+  newCaseProvider: string;
+  setNewCaseProvider: (value: string) => void;
+  newCaseLine2: string;
+  setNewCaseLine2: (value: string) => void;
+  newCaseWinners: string;
+  setNewCaseWinners: (value: string) => void;
   busy: boolean;
 }) {
-  if (!caseRow)
-    return (
-      <Empty
-        title="Validation Case 001 is unavailable"
-        description="The separate live-validation record could not be loaded."
-      />
-    );
   return (
-    <Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">New live-validation case</CardTitle>
+          <p className="text-sm text-muted-foreground">Each case is isolated from the historical training records and can be evaluated only once.</p>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <Input value={newCaseName} onChange={(event) => setNewCaseName(event.target.value)} placeholder="Case name" />
+          <Input value={newCaseGame} onChange={(event) => setNewCaseGame(event.target.value)} placeholder="Game name" />
+          <Input value={newCaseProvider} onChange={(event) => setNewCaseProvider(event.target.value)} placeholder="Provider" />
+          <Input value={newCaseLine2} onChange={(event) => setNewCaseLine2(event.target.value)} placeholder="10 Line 2 values" />
+          <Input value={newCaseWinners} onChange={(event) => setNewCaseWinners(event.target.value)} placeholder="5 actual winners" />
+          <Button onClick={createCase} disabled={busy}>Create separate case</Button>
+        </CardContent>
+      </Card>
+      {cases.length > 0 && <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-medium">Validation case</span>
+        <Select value={caseRow?.id ?? ""} onValueChange={selectCase}>
+          <SelectTrigger className="w-full max-w-md"><SelectValue placeholder="Choose case" /></SelectTrigger>
+          <SelectContent>{cases.map((item) => <SelectItem key={item.id} value={item.id}>{item.case_name} · {item.validation_status.replaceAll("_", " ")}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>}
+      {!caseRow && <Empty title="No validation case selected" description="Create a case above, or select an existing case." />}
+      {caseRow && <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base">{caseRow.case_name}</CardTitle>
@@ -1544,6 +1586,7 @@ function ValidationView({
             <Input
               value={line3}
               onChange={(event) => setLine3(event.target.value)}
+              disabled={caseRow.validation_status === "evaluated"}
               placeholder="Ten candidate values"
             />
           </div>
@@ -1552,6 +1595,7 @@ function ValidationView({
             <Input
               value={positions}
               onChange={(event) => setPositions(event.target.value)}
+              disabled={caseRow.validation_status === "evaluated"}
               placeholder="Five positions, in winner order"
             />
           </div>
@@ -1564,12 +1608,12 @@ function ValidationView({
               : "Not supplied; no values invented."}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={save} disabled={busy}>
+            <Button variant="outline" onClick={save} disabled={busy || caseRow.validation_status === "evaluated"}>
               Save validation details
             </Button>
             <Button
               onClick={evaluate}
-              disabled={busy || !caseRow.line3_values || !caseRow.winning_positions}
+              disabled={busy || caseRow.validation_status === "evaluated" || !caseRow.line3_values || !caseRow.winning_positions}
             >
               Compare with frozen baseline
             </Button>
@@ -1601,7 +1645,8 @@ function ValidationView({
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>}
+    </div>
   );
 }
 
@@ -1617,7 +1662,6 @@ function ReportsView({
   setName: (value: string) => void;
   save: () => void;
   busy: boolean;
-  revisions: WinnerRevisionRow[];
 }) {
   return (
     <div className="space-y-5">
