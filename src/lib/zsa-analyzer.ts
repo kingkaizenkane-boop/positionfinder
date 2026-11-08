@@ -628,9 +628,8 @@ export function analyzeZsa(
         b.occurrenceCount - a.occurrenceCount || a.pair[0] - b.pair[0] || a.pair[1] - b.pair[1],
     );
 
-  const qualifyingIds = new Set(
-    pairs.flatMap((pair) => pair.evidence.map((evidence) => `${pair.key}|${evidence.groupId}`)),
-  );
+  const tracingPairs = [...pairEvidence].map(([key, evidence]) => ({ key, pair: pairNumbers.get(key) ?? [0, 0], evidence }));
+  const countedSourceGroups = new Set<string>();
   const positionCounts = new Map<number, { count: number; byGame: Record<string, number> }>();
   const numberCounts = new Map<
     number,
@@ -661,11 +660,10 @@ export function analyzeZsa(
     }
   >();
 
-  for (const pair of pairs) {
+  for (const pair of tracingPairs) {
     for (const evidence of pair.evidence) {
-      if (!qualifyingIds.has(`${pair.key}|${evidence.groupId}`)) continue;
       if (!evidence.winningNumbers.some((number) => candidateNumbers.has(number))) continue;
-      for (const position of positions) {
+      for (const position of countedSourceGroups.has(evidence.groupId) ? [] : positions) {
         const sourceNumber = evidence.line2[position - 1];
         if (sourceNumber === undefined) continue;
         const positionEntry = positionCounts.get(position) ?? { count: 0, byGame: {} };
@@ -682,6 +680,7 @@ export function analyzeZsa(
         increment(numberEntry.byGame, evidence.gameId);
         numberCounts.set(sourceNumber, numberEntry);
       }
+      countedSourceGroups.add(evidence.groupId);
 
       const targetPositions = evidence.winningPositions;
       if (
